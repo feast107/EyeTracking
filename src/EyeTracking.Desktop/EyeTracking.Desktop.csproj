@@ -9,6 +9,8 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <InvariantGlobalization>true</InvariantGlobalization>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Configurations>Release;Debug</Configurations>
+        <Platforms>x64;x86</Platforms>
     </PropertyGroup>
 
     <ItemGroup>
@@ -44,7 +46,10 @@
             <DependentUpon>MainWindow.axaml</DependentUpon>
             <SubType>Code</SubType>
         </Compile>
-        <AdditionalFiles Include="NativeMethods.txt"/>
+        <AdditionalFiles Include="NativeMethods.txt" />
+        <None Include="..\cpp\lib\$(Platform)\libusbK.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>
