@@ -14,17 +14,28 @@
             <Grid>
                 <StackPanel Background="#626262aa"  
                             VerticalAlignment="Top" HorizontalAlignment="Left" Orientation="Horizontal">
-                    <TextBlock Text="鼠标坐标 : " />
-                    <TextBlock Text="{Binding MousePos}" />
+                    <TextBlock>
+                        <Run>鼠标坐标 : </Run>
+                        <Run Text="{Binding MousePos}"/>
+                    </TextBlock>
                     
-                    <TextBlock Text="画布坐标 : "  Margin="10,0"/>
-                    <TextBlock Text="{Binding CanvasPos}" />
+                    <TextBlock   Margin="10,0">
+                        <Run>画布坐标 : </Run>
+                        <Run Text="{Binding CanvasPos}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
+                    <TextBlock>
+                        <Run>瞳孔坐标 : </Run>
+                        <Run Text="{Binding LeftEyePos}"/>
+                        <Run>  </Run>
+                        <Run Text="{Binding RightEyePos}"/>
+                    </TextBlock>
                 </StackPanel>
             </Grid>
             <Grid>
                 <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="EyeSight" Fill="Aquamarine" 
-                             Height="60" Width="60" />
+                    <Ellipse x:Name="EyeSight" Fill="Aquamarine" Height="60" Width="60" />
                 </Canvas>
             </Grid>
         </Grid>

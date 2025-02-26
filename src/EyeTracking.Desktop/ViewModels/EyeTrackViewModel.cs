@@ -98,6 +98,8 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
     [ObservableProperty] private int                  fps;
     [ObservableProperty] private long                 copyCost;
     [ObservableProperty] private System.Drawing.Point mousePos;
+    [ObservableProperty] private Point                leftEyePos;
+    [ObservableProperty] private Point                rightEyePos;
     [ObservableProperty] private Avalonia.Point       canvasPos;
     [ObservableProperty] private bool                 enableDetect;
     [ObservableProperty] private bool                 enableSave;
@@ -249,7 +251,10 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
         var items = Debugs.ToArray();
         Debugs.Clear();
         foreach (var debug in items) debug.Dispose();
-        Tracker?.DetectLights(mat, out _, out _);
+        if (Tracker is null) return;
+        Tracker.DetectLights(mat, out var left, out var right);
+        if (left.HasValue) LeftEyePos   = left.Value;
+        if (right.HasValue) RightEyePos = right.Value;
     }
 
     [RelayCommand]

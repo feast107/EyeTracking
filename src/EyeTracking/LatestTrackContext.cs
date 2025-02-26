@@ -156,7 +156,7 @@ public class LatestTrackContext : EyeTrackContext
         // outFile << "Bright Spot Center: (" << (eyeRect.x + cx) << ", " << (eyeRect.y + cy) << ")" << std::endl;
     }
 
-// 反射点检测功能实现
+    // 反射点检测功能实现
     void DetectReflection(Mat image)
     {
         // 检测眼睛

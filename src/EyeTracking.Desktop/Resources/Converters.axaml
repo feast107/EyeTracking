@@ -4,4 +4,5 @@
     <co:NotNull2BoolConverter x:Key="NotNull2BoolConverter"/>
     <co:DividedByConverter x:Key="DividedByConverter"/>
     <co:BoolInverseConverter x:Key="BoolReConverter"/>
+    <co:StringFormatConverter x:Key="StringFormatConverter"/>
 </ResourceDictionary>

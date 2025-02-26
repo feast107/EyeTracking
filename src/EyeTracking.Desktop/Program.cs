@@ -1,6 +1,7 @@
 ﻿using System.CodeDom.Compiler;
 using Avalonia;
 using Avalonia.Dialogs;
+using EyeTracking.Desktop.Views.Windows;
 using ShowMeTheXaml;
 
 namespace EyeTracking.Desktop;
@@ -17,6 +18,10 @@ internal static class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
     {
+        AppDomain.CurrentDomain.UnhandledException += (o, e) =>
+        {
+            MessageBox.Show(e.ExceptionObject.ToString() ?? string.Empty);
+        };
         var app = AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
