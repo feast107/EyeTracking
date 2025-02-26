@@ -1,17 +1,19 @@
 ﻿using OpenCvSharp;
 using Cv2 = OpenCvSharp.Cv2;
-
+using System.IO;
 namespace EyeTracking;
 
 public class LatestTrackContext : EyeTrackContext
 {
     private bool? isLastLight;
-
+    private Point? _leftLightPos;
+    private Point? _rightLightPos;
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
 
     public override void DetectLights(Mat thisMat, out Point? leftLightPos, out Point? rightLightPos)
     {
+
         Debug(DebugHint.Origin, thisMat);
         if (LastMat is not null)
         {
@@ -43,9 +45,13 @@ public class LatestTrackContext : EyeTrackContext
             LastMat.Dispose();
         }
 
-        leftLightPos  = null;
-        rightLightPos = null;
+        // 将成员变量的值赋给 out 参数
+        leftLightPos = this._leftLightPos;
+        rightLightPos = this._rightLightPos;
         LastMat       = thisMat;
+
+        Console.WriteLine("输出: 左眼位置 " + leftLightPos.ToString());
+        Console.WriteLine("输出: 右眼位置 " + rightLightPos.ToString());
     }
 
     void DetectPupil(Mat lightImage, Mat darkImage)
@@ -61,8 +67,10 @@ public class LatestTrackContext : EyeTrackContext
         {
             throw new OperationCanceledException("No eyes detected");
         }
-
-        foreach (var eye in eyes.OrderBy(x => x.X))
+        string filePath = "output.txt"; // 输出文件路径
+        using (StreamWriter outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
+        {
+            foreach (var eye in eyes.OrderBy(x => x.X))
         {
             var eyeLightRegion = lightImage.SubMat(eye);
             var eyeDarkRegion  = darkImage.SubMat(eye);
@@ -88,11 +96,14 @@ public class LatestTrackContext : EyeTrackContext
 
                     center.X += eye.X;
                     center.Y += eye.Y;
-                }
+
+                        // 将瞳孔中心坐标写入文件
+                        outFile.WriteLine($"Pupil Center: ({center.X:F3}, {center.Y:F3})");
+                    }
             }
         }
     }
-
+ }
     // 检测眼睛
     Rect[] DetectEyes(Mat image) 
     {
@@ -129,7 +140,7 @@ public class LatestTrackContext : EyeTrackContext
     }
 
     // 提取亮斑中心坐标并绘制
-    void ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original) {
+    Point ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original) {
         // 阈值分割提取亮斑区域
         Mat binary = new();
         Cv2.Threshold(result, binary, 50, 255, ThresholdTypes.Binary); // 调整阈值以适应亮斑
@@ -146,15 +157,26 @@ public class LatestTrackContext : EyeTrackContext
         var m = Cv2.Moments(largestContour);
         if (m.M00 == 0) throw new OperationCanceledException("No bright spot detected!");
 
-        var cx = (int)(m.M10 / m.M00);
-        var cy = (int)(m.M01 / m.M00);
+        double cx = m.M10 / m.M00;
+        double cy = m.M01 / m.M00;
 
         // 将亮斑中心绘制在原图上
         Cv2.Circle(original, new Point(eyeRect.X + cx, eyeRect.Y + cy), 3, new Scalar(0, 0, 255), -1); // 红色圆点
-        // outFile << std::fixed << std::setprecision(3);                                                   // 设置小数点后3位
-        // // 写入文件
-        // outFile << "Bright Spot Center: (" << (eyeRect.x + cx) << ", " << (eyeRect.y + cy) << ")" << std::endl;
+        //this._leftLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
+        //this._rightLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
+        return new Point((eyeRect.X + cx), (eyeRect.Y + cy));
+
+
+        // 写入文件
+        string filePath = "output.txt"; // 输出文件路径
+        using (StreamWriter outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
+        {
+            // 设置小数点后3位
+            outFile.WriteLine($"Highlight Center: ({(eyeRect.X + cx):F3}, {(eyeRect.Y + cy):F3})");
+        }
+
     }
+    
 
     // 反射点检测功能实现
     void DetectReflection(Mat image)
@@ -185,8 +207,8 @@ public class LatestTrackContext : EyeTrackContext
         // }
 
         // 提取左眼和右眼的亮斑中心并绘制
-        ExtractBrightSpotCenter(resultLeft, eyes[0], image);
-        ExtractBrightSpotCenter(resultRight, eyes[1], image);
+this._leftLightPos = ExtractBrightSpotCenter(resultLeft, eyes[0], image);
+            this._rightLightPos = ExtractBrightSpotCenter(resultRight, eyes[1], image);
 
         // 关闭文件
 
@@ -196,7 +218,7 @@ public class LatestTrackContext : EyeTrackContext
         Cv2.ImShow("Processed Right Eye", resultRight);
 
         // 等待按键
-        Cv2.WaitKey(0);
+        // Cv2.WaitKey(0);
     }
 
 

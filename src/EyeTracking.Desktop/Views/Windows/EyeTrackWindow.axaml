@@ -26,7 +26,7 @@
                 </StackPanel>
                 <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
                     <TextBlock>
-                        <Run>瞳孔坐标 : </Run>
+                        <Run>反射亮斑坐标 : </Run>
                         <Run Text="{Binding LeftEyePos}"/>
                         <Run>  </Run>
                         <Run Text="{Binding RightEyePos}"/>
