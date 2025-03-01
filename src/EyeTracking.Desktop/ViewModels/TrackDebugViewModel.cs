@@ -50,14 +50,12 @@ public partial class TrackDebugViewModel(
     {
         get
         {
-            output?.Dispose();
+            field?.Dispose();
             using var tmp = parameters.Threshold(mat);
-            output = tmp.ToWriteableBitmap();
-            return output;
+            field = tmp.ToWriteableBitmap();
+            return field;
         }
     }
-
-    private WriteableBitmap? output;
 
     [RelayCommand]
     private void Detail() => new DebugWindow(this).Show();

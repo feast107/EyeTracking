@@ -22,7 +22,7 @@
         <PackageReference Include="Avalonia.Diagnostics" Version="11.2.3" Condition="'$(Configuration)' == 'Debug'" />
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.1.0" />
-        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2"/>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageReference Include="Dock.Avalonia" Version="11.1.0-rc1"/>
         <PackageReference Include="Dock.Model" Version="11.1.0-rc1"/>
         <PackageReference Include="Dock.Model.Avalonia" Version="11.1.0-rc1"/>
