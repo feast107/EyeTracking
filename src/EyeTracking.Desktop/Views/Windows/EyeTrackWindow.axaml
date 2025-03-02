@@ -12,6 +12,11 @@
     <cs:NeonBorder BorderThickness="4" PrimaryBorderColor="Cyan" SecondaryBorderColor="DeepPink">
         <Grid>
             <Grid>
+                <Canvas x:Name="Canvas">
+                    <Ellipse x:Name="EyeSight" Fill="Aquamarine" Height="30" Width="30" />
+                </Canvas>
+            </Grid>
+            <Grid>
                 <StackPanel Background="#626262aa"  
                             VerticalAlignment="Top" HorizontalAlignment="Left" Orientation="Horizontal">
                     <TextBlock>
@@ -24,6 +29,9 @@
                         <Run Text="{Binding CanvasPos}"/>
                     </TextBlock>
                 </StackPanel>
+                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Orientation="Horizontal">
+                    <Button Command="{Binding CleanRecordCommand}">清空</Button>
+                </StackPanel>
                 <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
                     <TextBlock>
                         <Run>反射亮斑坐标 : </Run>
@@ -33,11 +41,7 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
-            <Grid>
-                <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="EyeSight" Fill="Aquamarine" Height="60" Width="60" />
-                </Canvas>
-            </Grid>
+
         </Grid>
     </cs:NeonBorder>
 </Window>

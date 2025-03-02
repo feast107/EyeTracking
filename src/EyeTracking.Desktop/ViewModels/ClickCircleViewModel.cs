@@ -7,5 +7,6 @@ public partial class ClickCircleViewModel : ObservableObject
 {
     [ObservableProperty] public partial Point ScreenPoint { get; set; }
 
-    [ObservableProperty] public partial Point EyePoint { get; set; }
+    [ObservableProperty] public partial Point LeftEyePoint  { get; set; }
+    [ObservableProperty] public partial Point RightEyePoint { get; set; }
 }

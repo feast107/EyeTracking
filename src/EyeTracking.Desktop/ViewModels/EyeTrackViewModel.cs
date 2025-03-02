@@ -21,9 +21,8 @@ using Window = Avalonia.Controls.Window;
 namespace EyeTracking.Desktop.ViewModels;
 
 [AutoKeyAccessor]
-public partial class EyeTrackViewModel : ObservableObject , IDisposable
+public partial class EyeTrackViewModel : ObservableObject, IDisposable
 {
-   
     public EyeTrackViewModel(Window window)
     {
         this.window = window;
@@ -36,8 +35,9 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             }
         });
     }
-    
+
     private readonly Window window;
+
     private string? VideoPath
     {
         get;
@@ -45,7 +45,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
         {
             SetProperty(ref field, value);
             Dispose();
-            if (value == null)return;
+            if (value == null) return;
             Reset();
             Decoder    = new VideoDecoder(value);
             Enumerator = Decoder.Decode().GetEnumerator();
@@ -78,39 +78,43 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
     [NotifyPropertyChangedFor(nameof(CanPlay))]
     [NotifyPropertyChangedFor(nameof(PlayVisible))]
     [NotifyPropertyChangedFor(nameof(StopVisible))]
-    private IEnumerator<Mat>? enumerator;
+    public partial IEnumerator<Mat>? Enumerator { get; set; }
 
-    [ObservableProperty] private EyeTrackContext?    tracker;
-    [ObservableProperty] private EyeDetectParameters parameters = new();
-    [ObservableProperty] private VideoDecoder?       decoder;
-    [ObservableProperty] private WriteableBitmap?    bitmap;
-    [ObservableProperty] private WriteableBitmap?    output;
-    [ObservableProperty] private WriteableBitmap?    subtraction;
-    [ObservableProperty] private WriteableBitmap?    binSubtraction;
-    [ObservableProperty] private WriteableBitmap?    origin;
+    [ObservableProperty] public partial EyeTrackContext?    Tracker        { get; set; }
+    [ObservableProperty] public partial EyeDetectParameters Parameters     { get; set; } = new();
+    [ObservableProperty] public partial VideoDecoder?       Decoder        { get; set; }
+    [ObservableProperty] public partial WriteableBitmap?    Bitmap         { get; set; }
+    [ObservableProperty] public partial WriteableBitmap?    Output         { get; set; }
+    [ObservableProperty] public partial WriteableBitmap?    Subtraction    { get; set; }
+    [ObservableProperty] public partial WriteableBitmap?    BinSubtraction { get; set; }
+    [ObservableProperty] public partial WriteableBitmap?    Origin         { get; set; }
 
     [NotifyPropertyChangedFor(nameof(CanNext))]
     [NotifyPropertyChangedFor(nameof(PlayVisible))]
     [NotifyPropertyChangedFor(nameof(StopVisible))]
-    [ObservableProperty] private bool autoPlay;
-    [ObservableProperty] private bool                 capturing;
-    [ObservableProperty] private bool                 saving;
-    [ObservableProperty] private int                  fps;
-    [ObservableProperty] private long                 copyCost;
-    [ObservableProperty] private System.Drawing.Point mousePos;
-    [ObservableProperty] private Point                leftEyePos;
-    [ObservableProperty] private Point                rightEyePos;
-    [ObservableProperty] private Avalonia.Point       canvasPos;
-    [ObservableProperty] private bool                 enableDetect;
-    [ObservableProperty] private bool                 enableSave;
-    
+    [ObservableProperty]
+    public partial bool AutoPlay { get; set; }
+
+    [ObservableProperty] public partial bool                 Capturing    { get; set; }
+    [ObservableProperty] public partial bool                 Saving       { get; set; }
+    [ObservableProperty] public partial int                  Fps          { get; set; }
+    [ObservableProperty] public partial long                 CopyCost     { get; set; }
+    [ObservableProperty] public partial System.Drawing.Point MousePos     { get; set; }
+    [ObservableProperty] public partial Point                LeftEyePos   { get; set; }
+    [ObservableProperty] public partial Point                RightEyePos  { get; set; }
+    [ObservableProperty] public partial Avalonia.Point       CanvasPos    { get; set; }
+    [ObservableProperty] public partial bool                 EnableDetect { get; set; }
+    [ObservableProperty] public partial bool                 EnableSave   { get; set; }
+
+    [field: AllowNull, MaybeNull] public ObservableCollection<ClickCircleViewModel> ClickCircles => field ??= [];
+
     public bool CanNext => CanPlay && !AutoPlay;
     public bool CanPlay => Enumerator is not null;
 
     public bool PlayVisible => CanPlay && !AutoPlay;
     public bool StopVisible => CanPlay && AutoPlay;
-    
-    public ObservableCollection<TrackDebugViewModel> Debugs  { get; }= [];
+
+    public ObservableCollection<TrackDebugViewModel> Debugs { get; } = [];
 
     private string SavePath
     {
@@ -125,6 +129,22 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
 
     private bool created;
 
+    [RelayCommand]
+    public void CleanRecord()
+    {
+        ClickCircles.Clear();
+    }
+    
+    public void RecordTrack()
+    {
+        ClickCircles.Add(new()
+        {
+            LeftEyePoint  = new(LeftEyePos.X, LeftEyePos.Y),
+            RightEyePoint = new(RightEyePos.X, RightEyePos.Y),
+            ScreenPoint   = new(MousePos.X, MousePos.Y),
+        });
+    }
+
     private void SetMat(ref WriteableBitmap? field, string propName, Mat mat)
     {
         if (field != null)
@@ -134,6 +154,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             OnPropertyChanged(propName);
             tmp.Dispose();
         }
+
         field = mat.ToWriteableBitmap();
         OnPropertyChanged(propName);
     }
@@ -177,7 +198,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
         Tracker.Parameters =  Parameters;
         Tracker.OnDebug    += OnDebug;
     }
-  
+
 
     [RelayCommand]
     private async Task SelectVideo()
@@ -214,7 +235,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             break;
         }
     }
-    
+
     [RelayCommand]
     private async Task Start()
     {
@@ -229,7 +250,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
 
     [RelayCommand]
     private void Stop() => AutoPlay = false;
-    
+
     [RelayCommand]
     private void Next()
     {
@@ -243,6 +264,7 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             AutoPlay = false;
             return;
         }
+
         Detect(Enumerator.Current);
     }
 
@@ -265,11 +287,13 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             MessageBox.Show("未检测到驱动", window);
             return;
         }
+
         if (!capture.OpenDevice(0))
         {
             MessageBox.Show("设备 0 启动失败", window);
             return;
         }
+
         Reset();
         unsafe
         {
@@ -279,8 +303,8 @@ public partial class EyeTrackViewModel : ObservableObject , IDisposable
             capture.Start((buffer, length) =>
             {
                 var cur = watch.ElapsedMilliseconds;
-                Fps       = (int)(1000 / (cur - lastTick));
-                lastTick  = cur;
+                Fps      = (int)(1000 / (cur - lastTick));
+                lastTick = cur;
                 var arr  = new byte[length];
                 var ptr  = new IntPtr(buffer);
                 var cost = Stopwatch.StartNew();
