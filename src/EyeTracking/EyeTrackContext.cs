@@ -5,11 +5,11 @@ namespace EyeTracking;
 public abstract class EyeTrackContext : IDisposable
 {
     protected         Mat?                LastMat    { get; set; }
-    protected virtual Point?              LeftLight  { get; }
-    protected virtual Point?              RightLight { get; }
+    protected virtual Point?              LeftEyeVector  { get; }
+    protected virtual Point?              RightEyeVector { get; }
     public            EyeDetectParameters Parameters { get; set; } = new();
 
-    public abstract void DetectLights(Mat thisMat, out Point? leftLightPos, out Point? rightLightPos);
+    public abstract void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector);
 
     protected void DisplayResult(Mat mat, Point? left, Point? right)
     {

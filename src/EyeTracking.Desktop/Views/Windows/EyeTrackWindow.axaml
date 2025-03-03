@@ -13,31 +13,35 @@
         <Grid>
             <Grid>
                 <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="EyeSight" Fill="Aquamarine" Height="30" Width="30" />
+                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="30" Width="30" />
+                    <Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="DimGray" Opacity="0.5" Height="60" Width="60" />
+                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.5" Height="60" Width="60" />
                 </Canvas>
             </Grid>
             <Grid>
-                <StackPanel Background="#626262aa"  
+                <StackPanel Background="#626262aa"
                             VerticalAlignment="Top" HorizontalAlignment="Left" Orientation="Horizontal">
                     <TextBlock>
                         <Run>鼠标坐标 : </Run>
-                        <Run Text="{Binding MousePos}"/>
+                        <Run Text="{Binding MousePos}" />
                     </TextBlock>
-                    
-                    <TextBlock   Margin="10,0">
+
+                    <TextBlock Margin="10,0">
                         <Run>画布坐标 : </Run>
-                        <Run Text="{Binding CanvasPos}"/>
+                        <Run Text="{Binding CanvasPos}" />
                     </TextBlock>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Orientation="Horizontal">
-                    <Button Background="Black" Command="{Binding CleanRecordCommand}">清空</Button>
+                    <Button Background="Black" Command="{Binding CleanRecordCommand}" Margin="0,0,8,0">清空</Button>
+                    <Button Background="Black" Command="{Binding  CalibrationCommand}">校准</Button>
                 </StackPanel>
-                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
+                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right"
+                            Orientation="Horizontal">
                     <TextBlock>
                         <Run>反射亮斑坐标 : </Run>
-                        <Run Text="{Binding LeftEyePos}"/>
+                        <Run Text="{Binding LeftEyeVector}" />
                         <Run>  </Run>
-                        <Run Text="{Binding RightEyePos}"/>
+                        <Run Text="{Binding RightEyeVector}" />
                     </TextBlock>
                 </StackPanel>
             </Grid>

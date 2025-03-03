@@ -6,10 +6,10 @@ namespace EyeTracking;
 public class OldEyeTrackContext : EyeTrackContext
 {
 
-    public override void DetectLights(Mat thisMat, out Point? leftLightPos, out Point? rightLightPos)
+    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
     {
-        leftLightPos  = null;
-        rightLightPos = null;
+        leftEyeVector  = null;
+        rightEyeVector = null;
 
         //-----------------------------------------------------------------------------------
         //选择前一帧作为背景（读入第一帧时，第一帧作为背景）

@@ -11,7 +11,7 @@ public class LatestTrackContext : EyeTrackContext
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
 
-    public override void DetectLights(Mat thisMat, out Point? leftLightPos, out Point? rightLightPos)
+    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
     {
 
         Debug(DebugHint.Origin, thisMat);
@@ -46,12 +46,12 @@ public class LatestTrackContext : EyeTrackContext
         }
 
         // 将成员变量的值赋给 out 参数
-        leftLightPos = this._leftLightPos;
-        rightLightPos = this._rightLightPos;
+        leftEyeVector = this._leftLightPos;
+        rightEyeVector = this._rightLightPos;
         LastMat       = thisMat;
 
-        Console.WriteLine("输出: 左眼位置 " + leftLightPos.ToString());
-        Console.WriteLine("输出: 右眼位置 " + rightLightPos.ToString());
+        Console.WriteLine("输出: 左眼位置 " + leftEyeVector.ToString());
+        Console.WriteLine("输出: 右眼位置 " + rightEyeVector.ToString());
     }
 
     void DetectPupil(Mat lightImage, Mat darkImage)

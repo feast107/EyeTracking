@@ -95,16 +95,18 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool AutoPlay { get; set; }
 
-    [ObservableProperty] public partial bool                 Capturing    { get; set; }
-    [ObservableProperty] public partial bool                 Saving       { get; set; }
-    [ObservableProperty] public partial int                  Fps          { get; set; }
-    [ObservableProperty] public partial long                 CopyCost     { get; set; }
-    [ObservableProperty] public partial System.Drawing.Point MousePos     { get; set; }
-    [ObservableProperty] public partial Point                LeftEyePos   { get; set; }
-    [ObservableProperty] public partial Point                RightEyePos  { get; set; }
-    [ObservableProperty] public partial Avalonia.Point       CanvasPos    { get; set; }
-    [ObservableProperty] public partial bool                 EnableDetect { get; set; }
-    [ObservableProperty] public partial bool                 EnableSave   { get; set; }
+    [ObservableProperty] public partial bool                 Capturing            { get; set; }
+    [ObservableProperty] public partial bool                 Saving               { get; set; }
+    [ObservableProperty] public partial int                  Fps                  { get; set; }
+    [ObservableProperty] public partial long                 CopyCost             { get; set; }
+    [ObservableProperty] public partial System.Drawing.Point MousePos             { get; set; }
+    [ObservableProperty] public partial Point                LeftEyeVector        { get; set; }
+    [ObservableProperty] public partial Point                RightEyeVector       { get; set; }
+    [ObservableProperty] public partial Avalonia.Point       CanvasPos            { get; set; }
+    [ObservableProperty] public partial bool                 EnableDetect         { get; set; }
+    [ObservableProperty] public partial bool                 EnableSave           { get; set; }
+    [ObservableProperty] public partial GazeCalibration?     LeftGazeCalibration  { get; set; }
+    [ObservableProperty] public partial GazeCalibration?     RightGazeCalibration { get; set; }
 
     [field: AllowNull, MaybeNull] public ObservableCollection<ClickCircleViewModel> ClickCircles => field ??= [];
 
@@ -139,10 +141,19 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     {
         ClickCircles.Add(new()
         {
-            LeftEyePoint  = new(LeftEyePos.X, LeftEyePos.Y),
-            RightEyePoint = new(RightEyePos.X, RightEyePos.Y),
-            ScreenPoint   = new(MousePos.X, MousePos.Y),
+            LeftEyeVector  = new(LeftEyeVector.X, LeftEyeVector.Y),
+            RightEyeVector = new(RightEyeVector.X, RightEyeVector.Y),
+            ScreenPoint    = new(MousePos.X, MousePos.Y),
         });
+    }
+
+    [RelayCommand]
+    public void Calibration()
+    {
+        LeftGazeCalibration = new GazeCalibration(ClickCircles.Select(x =>
+            (x.LeftEyeVector.X, x.LeftEyeVector.Y, x.ScreenPoint.X, x.ScreenPoint.Y)));
+        RightGazeCalibration = new GazeCalibration(ClickCircles.Select(x =>
+            (x.RightEyeVector.X, x.RightEyeVector.Y, x.ScreenPoint.X, x.ScreenPoint.Y)));
     }
 
     private void SetMat(ref WriteableBitmap? field, string propName, Mat mat)
@@ -275,8 +286,8 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         foreach (var debug in items) debug.Dispose();
         if (Tracker is null) return;
         Tracker.DetectLights(mat, out var left, out var right);
-        if (left.HasValue) LeftEyePos   = left.Value;
-        if (right.HasValue) RightEyePos = right.Value;
+        if (left.HasValue) LeftEyeVector   = left.Value;
+        if (right.HasValue) RightEyeVector = right.Value;
     }
 
     [RelayCommand]

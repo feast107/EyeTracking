@@ -7,19 +7,19 @@ public class NewEyeTrackContext : EyeTrackContext
 {
     private readonly DetectedLights detected = new();
 
-    protected override Point? LeftLight  => detected.Left.Current;
-    protected override Point? RightLight => detected.Right.Current;
+    protected override Point? LeftEyeVector  => detected.Left.Current;
+    protected override Point? RightEyeVector => detected.Right.Current;
 
-    public override void DetectLights(Mat thisMat, out Point? leftLightPos, out Point? rightLightPos)
+    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
     {
-        leftLightPos  = null;
-        rightLightPos = null;
+        leftEyeVector  = null;
+        rightEyeVector = null;
         Debug(DebugHint.Origin, thisMat);
-        DetectLightsInternal(thisMat, ref leftLightPos, ref rightLightPos);
-        detected.Left.Current  = leftLightPos;
-        detected.Right.Current = rightLightPos;
+        DetectLightsInternal(thisMat, ref leftEyeVector, ref rightEyeVector);
+        detected.Left.Current  = leftEyeVector;
+        detected.Right.Current = rightEyeVector;
         using var clone = thisMat.Clone();
-        DisplayResult(clone, leftLightPos, rightLightPos);
+        DisplayResult(clone, leftEyeVector, rightEyeVector);
         LastMat?.Dispose();
         LastMat = thisMat;
     }
@@ -32,13 +32,13 @@ public class NewEyeTrackContext : EyeTrackContext
         using var binMat = Parameters.Threshold(subMat);
         Debug(DebugHint.Bin_Subtraction, binMat);
 
-        if (LeftLight != null && CheckLight(thisMat, binMat, LeftLight.Value, false).DisposeThen() is
+        if (LeftEyeVector != null && CheckLight(thisMat, binMat, LeftEyeVector.Value, false).DisposeThen() is
             {
                 Certain: true,
                 Point  : var left
             })
             leftLightPos = left;
-        if (RightLight != null && CheckLight(thisMat, binMat, RightLight.Value, false).DisposeThen() is
+        if (RightEyeVector != null && CheckLight(thisMat, binMat, RightEyeVector.Value, false).DisposeThen() is
             {
                 Certain: true,
                 Point  : var right
@@ -65,7 +65,7 @@ public class NewEyeTrackContext : EyeTrackContext
             {
                 if (leftLightPos.Value.DistanceTo(point) < motionRadius) continue; //符合左侧
             }
-            else if (LeftLight != null && LeftLight.Value.DistanceTo(point) < motionRadius) //有上一个参考
+            else if (LeftEyeVector != null && LeftEyeVector.Value.DistanceTo(point) < motionRadius) //有上一个参考
             {
                 leftLightPos = point;
                 candidate.Debug(true);
@@ -76,7 +76,7 @@ public class NewEyeTrackContext : EyeTrackContext
             {
                 if (rightLightPos.Value.DistanceTo(point) < motionRadius) continue; //符合右侧
             }
-            else if (RightLight != null && RightLight.Value.DistanceTo(point) < motionRadius) //有上一个参考
+            else if (RightEyeVector != null && RightEyeVector.Value.DistanceTo(point) < motionRadius) //有上一个参考
             {
                 rightLightPos = point;
                 candidate.Debug(true);
