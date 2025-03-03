@@ -30,7 +30,7 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Orientation="Horizontal">
-                    <Button Command="{Binding CleanRecordCommand}">清空</Button>
+                    <Button Background="Black" Command="{Binding CleanRecordCommand}">清空</Button>
                 </StackPanel>
                 <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
                     <TextBlock>
