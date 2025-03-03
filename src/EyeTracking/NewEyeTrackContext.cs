@@ -3,16 +3,16 @@ using OpenCvSharp;
 
 namespace EyeTracking;
 
-public class NewEyeTrackContext : EyeTrackContext
+public class NewEyeTrackContext : EyeTrackContext<EyeDetectResult>
 {
     private readonly DetectedLights detected = new();
 
-    protected override Point? LeftEyeVector  => detected.Left.Current;
-    protected override Point? RightEyeVector => detected.Right.Current;
+    protected  Point? LeftEyeVector  => detected.Left.Current;
+    protected  Point? RightEyeVector => detected.Right.Current;
 
-    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
+    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
     {
-        leftEyeVector  = null;
+        /*leftEyeVector  = null;
         rightEyeVector = null;
         Debug(DebugHint.Origin, thisMat);
         DetectLightsInternal(thisMat, ref leftEyeVector, ref rightEyeVector);
@@ -21,7 +21,8 @@ public class NewEyeTrackContext : EyeTrackContext
         using var clone = thisMat.Clone();
         DisplayResult(clone, leftEyeVector, rightEyeVector);
         LastMat?.Dispose();
-        LastMat = thisMat;
+        LastMat = thisMat;*/
+        result = null;
     }
 
     private void DetectLightsInternal(Mat thisMat, ref Point? leftLightPos, ref Point? rightLightPos)

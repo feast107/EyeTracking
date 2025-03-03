@@ -80,7 +80,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(StopVisible))]
     public partial IEnumerator<Mat>? Enumerator { get; set; }
 
-    [ObservableProperty] public partial EyeTrackContext?    Tracker        { get; set; }
+    [ObservableProperty] public partial EyeTrackContext<EyeDetectResult>?    Tracker        { get; set; }
     [ObservableProperty] public partial EyeDetectParameters Parameters     { get; set; } = new();
     [ObservableProperty] public partial VideoDecoder?       Decoder        { get; set; }
     [ObservableProperty] public partial WriteableBitmap?    Bitmap         { get; set; }
@@ -170,24 +170,24 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         OnPropertyChanged(propName);
     }
 
-    private void OnDebug(EyeTrackContext.DebugHint hint, params object[] args)
+    private void OnDebug(EyeTrackContext<EyeDetectResult>.DebugHint hint, params object[] args)
     {
         var mat = args[0].AsNotNull<Mat>();
         switch (hint)
         {
-            case EyeTrackContext.DebugHint.Origin:
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Origin:
                 Origin = mat.ToWriteableBitmap();
                 return;
-            case EyeTrackContext.DebugHint.Bin_Subtraction:
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Bin_Subtraction:
                 BinSubtraction = mat.ToWriteableBitmap();
                 return;
-            case EyeTrackContext.DebugHint.Subtraction:
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Subtraction:
                 Subtraction = mat.ToWriteableBitmap();
                 return;
-            case EyeTrackContext.DebugHint.Output:
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Output:
                 Output = mat.ToWriteableBitmap();
                 return;
-            case EyeTrackContext.DebugHint.Candidate:
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Candidate:
                 return;
                 var clone = mat.Clone();
                 Dispatcher.UIThread.Invoke(() =>
@@ -205,7 +205,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     private void Reset()
     {
         if (Tracker != null) return;
-        Tracker            =  this.ServiceProvider().GetRequiredService<EyeTrackContext>();
+        Tracker            =  this.ServiceProvider().GetRequiredService<EyeTrackContext<EyeDetectResult>>();
         Tracker.Parameters =  Parameters;
         Tracker.OnDebug    += OnDebug;
     }
@@ -285,9 +285,12 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         Debugs.Clear();
         foreach (var debug in items) debug.Dispose();
         if (Tracker is null) return;
-        Tracker.DetectLights(mat, out var left, out var right);
-        if (left.HasValue) LeftEyeVector   = left.Value;
-        if (right.HasValue) RightEyeVector = right.Value;
+        Tracker.DetectLights(mat, out var result);
+        if (result != null)
+        {
+            LeftEyeVector  = result.Left;
+            RightEyeVector = result.Right;
+        }
     }
 
     [RelayCommand]

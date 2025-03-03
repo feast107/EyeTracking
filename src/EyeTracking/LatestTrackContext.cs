@@ -1,19 +1,20 @@
 ﻿using OpenCvSharp;
 using Cv2 = OpenCvSharp.Cv2;
-using System.IO;
+
 namespace EyeTracking;
 
-public class LatestTrackContext : EyeTrackContext
+public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
-    private bool? isLastLight;
-    private Point? _leftLightPos;
-    private Point? _rightLightPos;
+    private bool?  isLastLight;
+
+    private EyeDetectResult Result { get; set; } = new();
+    
+
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
 
-    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
+    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
     {
-
         Debug(DebugHint.Origin, thisMat);
         if (LastMat is not null)
         {
@@ -45,16 +46,14 @@ public class LatestTrackContext : EyeTrackContext
             LastMat.Dispose();
         }
 
+        result = Result;
         // 将成员变量的值赋给 out 参数
-        leftEyeVector = this._leftLightPos;
-        rightEyeVector = this._rightLightPos;
-        LastMat       = thisMat;
-
-        Console.WriteLine("输出: 左眼位置 " + leftEyeVector.ToString());
-        Console.WriteLine("输出: 右眼位置 " + rightEyeVector.ToString());
+        LastMat = thisMat;
+        Console.WriteLine("输出: 左眼位置 " + Result.Left);
+        Console.WriteLine("输出: 右眼位置 " + Result.Right);
     }
 
-    void DetectPupil(Mat lightImage, Mat darkImage)
+    private bool DetectPupil(Mat lightImage, Mat darkImage)
     {
         var eyeCascade = new CascadeClassifier();
         if (!eyeCascade.Load(XmlPath))
@@ -65,12 +64,12 @@ public class LatestTrackContext : EyeTrackContext
         var eyes = eyeCascade.DetectMultiScale(lightImage, 1.1, 4, 0, new Size(30, 30));
         if (eyes.Length == 0)
         {
-            throw new OperationCanceledException("No eyes detected");
+            return false;
         }
-        string filePath = "output.txt"; // 输出文件路径
-        using (StreamWriter outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
-        {
-            foreach (var eye in eyes.OrderBy(x => x.X))
+
+        const string filePath = "output.txt";                                       // 输出文件路径
+        //using var    outFile  = new StreamWriter(filePath, true);
+        foreach (var eye in eyes.OrderBy(x => x.X))
         {
             var eyeLightRegion = lightImage.SubMat(eye);
             var eyeDarkRegion  = darkImage.SubMat(eye);
@@ -87,25 +86,29 @@ public class LatestTrackContext : EyeTrackContext
             Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External,
                 ContourApproximationModes.ApproxSimple);
 
+            var leftFin = false;
             foreach (var contour in contours)
             {
-                if (contour.Length >= 5)
-                {
-                    var ellipse = Cv2.FitEllipse(contour);
-                    var center  = ellipse.Center;
+                if (contour.Length < 5) continue;
+                var ellipse = Cv2.FitEllipse(contour);
+                var center  = ellipse.Center;
 
-                    center.X += eye.X;
-                    center.Y += eye.Y;
+                center.X += eye.X;
+                center.Y += eye.Y;
 
-                        // 将瞳孔中心坐标写入文件
-                        outFile.WriteLine($"Pupil Center: ({center.X:F3}, {center.Y:F3})");
-                    }
+                if (!leftFin) Result.LeftEyeCenter = new Point(center.X, center.Y);
+                else Result.RightEyeCenter         = new Point(center.X, center.Y);
+                leftFin = true;
+                // 将瞳孔中心坐标写入文件
+                //outFile.WriteLine($"Pupil Center: ({center.X:F3}, {center.Y:F3})");
             }
         }
+
+        return true;
     }
- }
+
     // 检测眼睛
-    Rect[] DetectEyes(Mat image) 
+    private static Rect[] DetectEyes(Mat image)
     {
         var eyeCascade = new CascadeClassifier();
         if (!eyeCascade.Load(XmlPath))
@@ -117,7 +120,7 @@ public class LatestTrackContext : EyeTrackContext
     }
 
     // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
-    Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
+    private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
         // 确保核大小为奇数
         maxFilterSize    = maxFilterSize    % 2 == 0 ? maxFilterSize    + 1 : maxFilterSize;
@@ -140,52 +143,62 @@ public class LatestTrackContext : EyeTrackContext
     }
 
     // 提取亮斑中心坐标并绘制
-    Point ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original) {
+    private bool ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original, out Point? output)
+    {
         // 阈值分割提取亮斑区域
         Mat binary = new();
         Cv2.Threshold(result, binary, 50, 255, ThresholdTypes.Binary); // 调整阈值以适应亮斑
 
         // 查找轮廓
-        Cv2.FindContours(binary,out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External,
+            ContourApproximationModes.ApproxSimple);
 
-        if (contours.Length == 0) throw new OperationCanceledException("No bright spot detected!");
+        if (contours.Length == 0)
+        {
+            output = null;
+            return false;
+        }
 
         // 假设最大的轮廓是亮斑
         var largestContour = contours.OrderByDescending(x => Cv2.ContourArea(x)).First();
 
         // 计算质心
         var m = Cv2.Moments(largestContour);
-        if (m.M00 == 0) throw new OperationCanceledException("No bright spot detected!");
+        if (m.M00 == 0)
+        {
+            output = null;
+            return false;
+        }
 
-        double cx = m.M10 / m.M00;
-        double cy = m.M01 / m.M00;
+        var cx = m.M10 / m.M00;
+        var cy = m.M01 / m.M00;
 
         // 将亮斑中心绘制在原图上
         Cv2.Circle(original, new Point(eyeRect.X + cx, eyeRect.Y + cy), 3, new Scalar(0, 0, 255), -1); // 红色圆点
         //this._leftLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
         //this._rightLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
-        return new Point((eyeRect.X + cx), (eyeRect.Y + cy));
+        output = new Point(eyeRect.X + cx, eyeRect.Y + cy);
+        return true;
 
 
         // 写入文件
-        string filePath = "output.txt"; // 输出文件路径
-        using (StreamWriter outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
+        var filePath = "output.txt";                                 // 输出文件路径
+        using (var outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
         {
             // 设置小数点后3位
             outFile.WriteLine($"Highlight Center: ({(eyeRect.X + cx):F3}, {(eyeRect.Y + cy):F3})");
         }
-
     }
-    
+
 
     // 反射点检测功能实现
-    void DetectReflection(Mat image)
+    private void DetectReflection(Mat image)
     {
         // 检测眼睛
         var eyes = DetectEyes(image);
         if (eyes.Length != 2)
         {
-            throw new OperationCanceledException("Error: Exactly two eyes are required for this operation!");
+            return;
         }
 
         eyes = eyes.OrderBy(x => x.X).ToArray();
@@ -207,15 +220,34 @@ public class LatestTrackContext : EyeTrackContext
         // }
 
         // 提取左眼和右眼的亮斑中心并绘制
-this._leftLightPos = ExtractBrightSpotCenter(resultLeft, eyes[0], image);
-            this._rightLightPos = ExtractBrightSpotCenter(resultRight, eyes[1], image);
+        var leftCenter = Result.LeftEyeCenter;
+        if (ExtractBrightSpotCenter(resultLeft, eyes[0], image, out var left)
+        && leftCenter != null)
+        {
+            var cur  = new Point(
+                left!.Value.X - leftCenter.Value.X,
+                left.Value.Y  - leftCenter.Value.Y);
+            if (!(cur.X is 0 && cur.Y is 0))
+                Result.Left = cur;
+        }
+
+        var rightCenter = Result.RightEyeCenter;
+        if (ExtractBrightSpotCenter(resultRight, eyes[1], image, out var right)
+        && rightCenter != null)
+        {
+            var cur = new Point(
+                right!.Value.X - rightCenter.Value.X,
+                right.Value.Y  - rightCenter.Value.Y);
+            if (!(cur.X is 0 && cur.Y is 0))
+                Result.Right = cur;
+        }
 
         // 关闭文件
 
         // 显示结果
-        Cv2.ImShow("Original Image with Bright Spot Centers", image);
-        Cv2.ImShow("Processed Left Eye", resultLeft);
-        Cv2.ImShow("Processed Right Eye", resultRight);
+        // Cv2.ImShow("Original Image with Bright Spot Centers", image);
+        // Cv2.ImShow("Processed Left Eye", resultLeft);
+        // Cv2.ImShow("Processed Right Eye", resultRight);
 
         // 等待按键
         // Cv2.WaitKey(0);

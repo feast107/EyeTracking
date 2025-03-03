@@ -3,19 +3,20 @@ using OpenCvSharp;
 
 namespace EyeTracking;
 
-public class OldEyeTrackContext : EyeTrackContext
+public class OldEyeTrackContext : EyeTrackContext<EyeDetectResult>
 {
 
-    public override void DetectLights(Mat thisMat, out Point? leftEyeVector, out Point? rightEyeVector)
+    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
     {
-        leftEyeVector  = null;
-        rightEyeVector = null;
+        /*leftEyeVector  = null;
+        rightEyeVector = null;*/
 
         //-----------------------------------------------------------------------------------
         //选择前一帧作为背景（读入第一帧时，第一帧作为背景）
         if (LastMat == null)
         {
             LastMat = thisMat;
+            result  = null;
             return;
         }
 
@@ -49,6 +50,7 @@ public class OldEyeTrackContext : EyeTrackContext
         GetMyMinEnclosingCircle(area);
         //imshow("frame_0", frame_0);
         LastMat = thisMat;
+        result  = null;
     }
 
     private Mat FrameSubtraction(Mat gray, Mat background)
@@ -178,4 +180,5 @@ public class OldEyeTrackContext : EyeTrackContext
 
         drawing.Show("Contours");
     }
+
 }
