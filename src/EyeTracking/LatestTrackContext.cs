@@ -1,4 +1,5 @@
-﻿using OpenCvSharp;
+﻿using System.Diagnostics.CodeAnalysis;
+using OpenCvSharp;
 using Cv2 = OpenCvSharp.Cv2;
 
 namespace EyeTracking;
@@ -7,8 +8,19 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
     private bool?  isLastLight;
 
-    private EyeDetectResult Result { get; set; } = new();
-    
+    private EyeDetectResult   Result     { get; set; } = new();
+
+    [field: AllowNull,MaybeNull]
+    private CascadeClassifier EyeCascade
+    {
+        get
+        {
+            if (field is not null) return field;
+            field = new CascadeClassifier();
+            if (field.Load(XmlPath)) return field;
+            throw new FileLoadException("Error: Unable to load eye cascade classifier!");
+        }
+    }
 
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
@@ -55,13 +67,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
     private bool DetectPupil(Mat lightImage, Mat darkImage)
     {
-        var eyeCascade = new CascadeClassifier();
-        if (!eyeCascade.Load(XmlPath))
-        {
-            throw new FileLoadException("Error: Unable to load eye cascade classifier!");
-        }
-
-        var eyes = eyeCascade.DetectMultiScale(lightImage, 1.1, 4, 0, new Size(30, 30));
+        var eyes = EyeCascade.DetectMultiScale(lightImage, 1.1, 4, 0, new Size(30, 30));
         if (eyes.Length == 0)
         {
             return false;
@@ -108,15 +114,9 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     }
 
     // 检测眼睛
-    private static Rect[] DetectEyes(Mat image)
+    private Rect[] DetectEyes(Mat image)
     {
-        var eyeCascade = new CascadeClassifier();
-        if (!eyeCascade.Load(XmlPath))
-        {
-            throw new FileLoadException("Error: Unable to load eye cascade classifier!");
-        }
-
-        return eyeCascade.DetectMultiScale(image, 1.1, 4, 0, new Size(30, 30));
+        return EyeCascade.DetectMultiScale(image, 1.1, 4, 0, new Size(30, 30));
     }
 
     // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
