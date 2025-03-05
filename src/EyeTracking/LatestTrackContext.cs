@@ -1,16 +1,40 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using OpenCvSharp;
 using Cv2 = OpenCvSharp.Cv2;
 
 namespace EyeTracking;
 
+public class DetectionStatistics
+{
+    public int NoEyesDetectedCount//眼睛识别异常
+    {
+        get;
+        set;
+    } = 0;
+    public int NoReflectionDetectedCount//亮斑识别异常
+    {
+        get;
+        set;
+    } = 0;
+    public int NoPuilpDetectedCount//瞳孔监测异常
+    {
+        get;
+        set;
+    } = 0;
+    public int TotalFrames { 
+        get; 
+        set; 
+    } = 0;//总帧数
+    public double ErrorRate => (NoEyesDetectedCount + NoReflectionDetectedCount + NoPuilpDetectedCount) / (double)TotalFrames * 100;
+}
 public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
-    private bool?  isLastLight;
+    private bool? isLastLight;
 
-    private EyeDetectResult   Result     { get; set; } = new();
+    private EyeDetectResult Result { get; set; } = new();
 
-    [field: AllowNull,MaybeNull]
+    [field: AllowNull, MaybeNull]
     private CascadeClassifier EyeCascade
     {
         get
@@ -25,8 +49,15 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
 
-    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
+    //做统计
+    public DetectionStatistics Stats
     {
+        get;
+        private set;
+    } = new DetectionStatistics();
+    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
+    {
+        Stats.TotalFrames++;//开始总帧计数
         Debug(DebugHint.Origin, thisMat);
         if (LastMat is not null)
         {
@@ -38,7 +69,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
             }
 
             var light = isLastLight.Value ? LastMat : thisMat;
-            var dark  = isLastLight.Value ? thisMat : LastMat;
+            var dark = isLastLight.Value ? thisMat : LastMat;
 
             DetectPupil(light, dark);
             DetectReflection(light);
@@ -64,21 +95,27 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         Console.WriteLine("输出: 左眼位置 " + Result.Left);
         Console.WriteLine("输出: 右眼位置 " + Result.Right);
     }
+    private Rect[]? cachedEyes = null;//缓存眼部检测结果
 
+    //
+
+
+    //瞳孔检测
     private bool DetectPupil(Mat lightImage, Mat darkImage)
     {
         var eyes = EyeCascade.DetectMultiScale(lightImage, 1.1, 4, 0, new Size(30, 30));
         if (eyes.Length == 0)
         {
+            Stats.NoEyesDetectedCount++;
             return false;
         }
 
-        const string filePath = "output.txt";                                       // 输出文件路径
+        /*const string filePath = "output.txt";        */                               // 输出文件路径
         //using var    outFile  = new StreamWriter(filePath, true);
         foreach (var eye in eyes.OrderBy(x => x.X))
         {
             var eyeLightRegion = lightImage.SubMat(eye);
-            var eyeDarkRegion  = darkImage.SubMat(eye);
+            var eyeDarkRegion = darkImage.SubMat(eye);
 
             var eyePupilPosition = new Mat();
             Cv2.Absdiff(eyeLightRegion, eyeDarkRegion, eyePupilPosition);
@@ -97,16 +134,14 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
             {
                 if (contour.Length < 5) continue;
                 var ellipse = Cv2.FitEllipse(contour);
-                var center  = ellipse.Center;
+                var center = ellipse.Center;
 
                 center.X += eye.X;
                 center.Y += eye.Y;
 
                 if (!leftFin) Result.LeftEyeCenter = new Point(center.X, center.Y);
-                else Result.RightEyeCenter         = new Point(center.X, center.Y);
+                else Result.RightEyeCenter = new Point(center.X, center.Y);
                 leftFin = true;
-                // 将瞳孔中心坐标写入文件
-                //outFile.WriteLine($"Pupil Center: ({center.X:F3}, {center.Y:F3})");
             }
         }
 
@@ -116,6 +151,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     // 检测眼睛
     private Rect[] DetectEyes(Mat image)
     {
+
         return EyeCascade.DetectMultiScale(image, 1.1, 4, 0, new Size(30, 30));
     }
 
@@ -123,7 +159,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
         // 确保核大小为奇数
-        maxFilterSize    = maxFilterSize    % 2 == 0 ? maxFilterSize    + 1 : maxFilterSize;
+        maxFilterSize = maxFilterSize % 2 == 0 ? maxFilterSize + 1 : maxFilterSize;
         medianFilterSize = medianFilterSize % 2 == 0 ? medianFilterSize + 1 : medianFilterSize;
 
         // 最大值滤波
@@ -142,7 +178,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         return result;
     }
 
-    // 提取亮斑中心坐标并绘制
+    // 提取亮斑中心坐标
     private bool ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original, out Point? output)
     {
         // 阈值分割提取亮斑区域
@@ -155,6 +191,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
         if (contours.Length == 0)
         {
+            Stats.NoReflectionDetectedCount++;
             output = null;
             return false;
         }
@@ -174,20 +211,20 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         var cy = m.M01 / m.M00;
 
         // 将亮斑中心绘制在原图上
-        Cv2.Circle(original, new Point(eyeRect.X + cx, eyeRect.Y + cy), 3, new Scalar(0, 0, 255), -1); // 红色圆点
+        //Cv2.Circle(original, new Point(eyeRect.X + cx, eyeRect.Y + cy), 3, new Scalar(0, 0, 255), -1); // 红色圆点
         //this._leftLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
         //this._rightLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
         output = new Point(eyeRect.X + cx, eyeRect.Y + cy);
         return true;
 
 
-        // 写入文件
-        var filePath = "output.txt";                                 // 输出文件路径
-        using (var outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
-        {
-            // 设置小数点后3位
-            outFile.WriteLine($"Highlight Center: ({(eyeRect.X + cx):F3}, {(eyeRect.Y + cy):F3})");
-        }
+        //// 写入文件
+        //var filePath = "output.txt";                                 // 输出文件路径
+        //using (var outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
+        //{
+        //    // 设置小数点后3位
+        //    outFile.WriteLine($"Highlight Center: ({(eyeRect.X + cx):F3}, {(eyeRect.Y + cy):F3})");
+        //}
     }
 
 
@@ -198,17 +235,18 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         var eyes = DetectEyes(image);
         if (eyes.Length != 2)
         {
+            Stats.NoEyesDetectedCount++;
             return;
         }
 
         eyes = eyes.OrderBy(x => x.X).ToArray();
 
         // 提取左眼和右眼区域
-        var leftEye  = image.SubMat(eyes[0]);
+        var leftEye = image.SubMat(eyes[0]);
         var rightEye = image.SubMat(eyes[1]);
 
         // 处理眼睛区域
-        var resultLeft  = ProcessEyeArea(leftEye, 5, 3);
+        var resultLeft = ProcessEyeArea(leftEye, 5, 3);
         var resultRight = ProcessEyeArea(rightEye, 5, 3);
 
         // 打开输出文件
@@ -224,9 +262,9 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         if (ExtractBrightSpotCenter(resultLeft, eyes[0], image, out var left)
         && leftCenter != null)
         {
-            var cur  = new Point(
+            var cur = new Point(
                 left!.Value.X - leftCenter.Value.X,
-                left.Value.Y  - leftCenter.Value.Y);
+                left.Value.Y - leftCenter.Value.Y);
             if (!(cur.X is 0 && cur.Y is 0))
                 Result.Left = cur;
         }
@@ -237,136 +275,52 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         {
             var cur = new Point(
                 right!.Value.X - rightCenter.Value.X,
-                right.Value.Y  - rightCenter.Value.Y);
+                right.Value.Y - rightCenter.Value.Y);
             if (!(cur.X is 0 && cur.Y is 0))
                 Result.Right = cur;
         }
-
-        // 关闭文件
-
-        // 显示结果
-        // Cv2.ImShow("Original Image with Bright Spot Centers", image);
-        // Cv2.ImShow("Processed Left Eye", resultLeft);
-        // Cv2.ImShow("Processed Right Eye", resultRight);
-
-        // 等待按键
-        // Cv2.WaitKey(0);
     }
 
-
-    /*private static Mat GetPupilPosition(Mat darkImage, Mat lightImage)
-    {
-        var pupilPosition = new Mat();
-        Cv2.Absdiff(darkImage, lightImage, pupilPosition);
-        Cv2.Normalize(pupilPosition, pupilPosition, 0, 255, NormTypes.MinMax);
-        return pupilPosition;
-    }
-
-    private static Mat ApplyGaussianBlur(Mat image)
-    {
-        var blurredImage = new Mat();
-        Cv2.GaussianBlur(image, blurredImage, new Size(5, 5), 0);
-        return blurredImage;
-    }
-
-    private static Mat ApplyThreshold(Mat image)
-    {
-        var binary = new Mat();
-        Cv2.Threshold(image, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
-        return binary;
-    }
-
-    private static Mat DetectEdges(Mat binaryImage)
-    {
-        var edges = new Mat();
-        Cv2.Canny(binaryImage, edges, 50, 150);
-        return edges;
-    }
-
-    private List<OpenCvSharp.Point> FindLargestContours(List<List<Point>> contours)
-    {
-        var largestContours = new List<OpenCvSharp.Point>();
-        var maxArea        = 0d;
-        foreach (var contour in contours)
-        {
-            var area = Cv2.ContourArea(contour);
-            if (!(area > maxArea)) continue;
-            maxArea        = area;
-            largestContours = contour;
-        }
-
-        return largestContours;
-    }
-
-    void ProcessEllipseAndBlobs(Point[][] contours, Mat lightImage)
-    {
-        var           result        = lightImage.Clone();
-        var           detectedBlobs = lightImage.Clone();
-        List<Point2f> centers       = [];
-
-        foreach (var contour in contours)
-        {
-            if(contour.Length < 5) continue;
-
-            var fittedEllipse = Cv2.FitEllipse(contour);
-            var area          = Cv2.ContourArea(contour);
-            var aspectRatio   = Math.Abs(fittedEllipse.Size.Height / fittedEllipse.Size.Width);
-            if (area is > 100 and < 1000 && aspectRatio > 0.5 && aspectRatio < 2.0)
-            {
-                var center = fittedEllipse.Center;
-                var isDuplicate = false;
-                foreach (var existingCenter in centers)
-                {
-                    if (Cv2.Norm(center.DistanceTo(existingCenter)) < 10)
-                    {
-                        isDuplicate = true;
-                        break;
-                    }
-                }
-
-                if (!isDuplicate)
-                {
-                    centers.Add(center);
-                    Cv2.Ellipse(result, fittedEllipse, Scalar.Green, 2);
-                    Cv2.Circle(result, center.ToPoint(), 2, Scalar.Blue, -1);
-
-
-                    var maskRaw = Mat.Zeros(lightImage.Size(), MatType.CV_8UC1);
-                    var mask    = new Mat();
-                    Cv2.EqualizeHist(maskRaw, mask);
-                    Cv2.Ellipse(mask, fittedEllipse, Scalar.White, -1);
-                    var maskedImage = new Mat();
-                    lightImage.CopyTo(maskedImage, mask);
-
-                    const int manualThresholdValue = 105;
-                    var       binaryMasked         = new Mat();
-                    Cv2.Threshold(mask,binaryMasked,manualThresholdValue,255,ThresholdTypes.Binary);
-
-                    Cv2.FindContours(binaryMasked, out var maskedContours, out _,
-                        RetrievalModes.List, ContourApproximationModes.ApproxSimple);
-
-                    var blobCount = 0;
-                    foreach (var mContour in maskedContours)
-                    {
-                        var mArea = Cv2.ContourArea(mContour);
-                        if (mArea is > 3 and < 10)
-                        {
-                            Cv2.DrawContours(detectedBlobs, [mContour], -1, Scalar.Red, 2);
-                            blobCount++;
-
-                            var moments = Cv2.Moments(mContour);
-                            var centroid = new Point2f((float)(moments.M10 / moments.M00), (float)(moments.M01 / moments.M00));
-
-                            Cv2.Circle(detectedBlobs, centroid.ToPoint(), 2, Scalar.Cyan, -1);
-                        }
-                    }
-
-                    Cv2.MinMaxLoc(maskedImage,
-                        out _, out var maxVal,
-                        out _, out var brightestPoint, mask);
-
-                }
-            }
-        }
-    }*/
 }
+public class EyeTrack : EyeTrackContext<Point>
+{
+    public override void DetectSight(Mat thisMat, out Point result)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+// 显示结果
+// Cv2.ImShow("Original Image with Bright Spot Centers", image);
+// Cv2.ImShow("Processed Left Eye", resultLeft);
+// Cv2.ImShow("Processed Right Eye", resultRight);
+
+// 等待按键
+// Cv2.WaitKey(0);
+
+
+
+//public class Demo {
+
+
+//    public int main() {
+//        Funct fun = new Func2();
+//        fun.Calculate(1);
+//    }
+
+
+//    public abstract class Funct {
+//        public abstract int Calculate(int arg);
+//    }
+
+
+//    public class Fun1 : Funct
+//    {
+//        public override int Calculate(int arg) => arg * arg + 2 * arg + 1;
+//    }
+
+//    public class Func2 : Funct
+//    {
+//        public override int Calculate(int arg) => 1 / arg;
+//     }
+//}

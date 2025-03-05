@@ -10,7 +10,7 @@ public class NewEyeTrackContext : EyeTrackContext<EyeDetectResult>
     protected  Point? LeftEyeVector  => detected.Left.Current;
     protected  Point? RightEyeVector => detected.Right.Current;
 
-    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
+    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
     {
         /*leftEyeVector  = null;
         rightEyeVector = null;

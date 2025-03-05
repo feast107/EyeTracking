@@ -1,13 +1,20 @@
 ﻿using OpenCvSharp;
+using System.Collections.ObjectModel;
 
 namespace EyeTracking;
 
 public abstract class EyeTrackContext<TResult> : IDisposable
 {
+    public ObservableCollection<EyeDetectTrace> Traces { get; } = new() {
+        new EyeDetectTrace(){
+            Content = "1"
+        }
+    };
+
     protected         Mat?                LastMat    { get; set; }
     public            EyeDetectParameters Parameters { get; set; } = new();
 
-    public abstract void DetectLights(Mat thisMat, out TResult? result);
+    public abstract void DetectSight(Mat thisMat, out TResult? result);
 
     protected void DisplayResult(Mat mat, Point? left, Point? right)
     {

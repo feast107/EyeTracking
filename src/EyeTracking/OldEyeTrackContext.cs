@@ -6,7 +6,7 @@ namespace EyeTracking;
 public class OldEyeTrackContext : EyeTrackContext<EyeDetectResult>
 {
 
-    public override void DetectLights(Mat thisMat, out EyeDetectResult? result)
+    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
     {
         /*leftEyeVector  = null;
         rightEyeVector = null;*/

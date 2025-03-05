@@ -37,12 +37,8 @@
                 </StackPanel>
                 <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right"
                             Orientation="Horizontal">
-                    <TextBlock>
-                        <Run>反射亮斑坐标 : </Run>
-                        <Run Text="{Binding LeftEyeVector}" />
-                        <Run>  </Run>
-                        <Run Text="{Binding RightEyeVector}" />
-                    </TextBlock>
+					<ListBox>
+					</ListBox>
                 </StackPanel>
             </Grid>
 

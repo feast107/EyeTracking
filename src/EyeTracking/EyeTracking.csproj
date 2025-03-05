@@ -16,7 +16,8 @@
         <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0"/>
         <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0"/>
         <PackageReference Include="MathNet.Numerics" Version="4.0.0"/>
-    </ItemGroup>
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+	</ItemGroup>
 
     <ItemGroup>
         <None Include="Resources/**/*.*">

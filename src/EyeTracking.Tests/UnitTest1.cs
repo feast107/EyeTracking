@@ -36,7 +36,7 @@ public class Tests
         var    context  = new OldEyeTrackContext();
         Loop(mat =>
         {
-            context.DetectLights(mat, out _);
+            context.DetectSight(mat, out _);
         }, false);
         last?.Dispose();
     }

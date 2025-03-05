@@ -285,7 +285,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         Debugs.Clear();
         foreach (var debug in items) debug.Dispose();
         if (Tracker is null) return;
-        Tracker.DetectLights(mat, out var result);
+        Tracker.DetectSight(mat, out var result);
         if (result != null)
         {
             LeftEyeVector  = result.Left;
