@@ -107,6 +107,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         if (eyes.Length == 0)
         {
             Stats.NoEyesDetectedCount++;
+            Traces.Add($"{Stats.NoEyesDetectedCount}");
             return false;
         }
 
@@ -279,6 +280,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
             if (!(cur.X is 0 && cur.Y is 0))
                 Result.Right = cur;
         }
+
     }
 
 }

@@ -9,5 +9,10 @@ namespace EyeTracking
     {
         [ObservableProperty]
         public partial string? Content { get; set; }
+
+        public static implicit operator EyeDetectTrace(string content) => new()
+        {
+            Content = content
+        };
     }
 }

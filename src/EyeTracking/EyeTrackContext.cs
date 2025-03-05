@@ -5,11 +5,7 @@ namespace EyeTracking;
 
 public abstract class EyeTrackContext<TResult> : IDisposable
 {
-    public ObservableCollection<EyeDetectTrace> Traces { get; } = new() {
-        new EyeDetectTrace(){
-            Content = "1"
-        }
-    };
+    public ObservableCollection<EyeDetectTrace> Traces { get; } = [];
 
     protected         Mat?                LastMat    { get; set; }
     public            EyeDetectParameters Parameters { get; set; } = new();

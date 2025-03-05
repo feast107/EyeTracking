@@ -37,8 +37,13 @@
                 </StackPanel>
                 <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right"
                             Orientation="Horizontal">
-					<ListBox>
-					</ListBox>
+					<ListBox ItemsSource="{Binding  Tracker.Traces}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Content}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </StackPanel>
             </Grid>
 
