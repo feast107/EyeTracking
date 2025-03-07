@@ -11,12 +11,16 @@
     <ItemGroup>
         <PackageReference Include="Antelcat.AutoGen" Version="2.0.0-preview2" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-        <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616"/>
-        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616"/>
-        <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0"/>
-        <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0"/>
-        <PackageReference Include="MathNet.Numerics" Version="4.0.0"/>
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+        <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
+        <PackageReference Include="PolySharp" Version="1.15.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
+        <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0" />
+        <PackageReference Include="MathNet.Numerics" Version="4.0.0" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 	</ItemGroup>
 
     <ItemGroup>

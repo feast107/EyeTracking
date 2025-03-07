@@ -236,7 +236,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         {
             SuggestedStartLocation = await window.StorageProvider.TryGetFolderFromPathAsync(
                 VideoPath is null
-                    ? @"C:\Users\13532\Documents\WeChat Files\wxid_9wusmarmogu622\FileStorage\File\2024-09\保存\保存"
+                    ? @"E:\WeChat\WeChat Files\wxid_8218gwuowoqm22\FileStorage\File\2025-02\Eye_Release_V1.0_2025_2_5\NEU_Release_Flip_20230805\中"
                     : ((FilePath)VideoPath).DirectoryName!),
             AllowMultiple = false
         });
