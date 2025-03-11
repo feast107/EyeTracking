@@ -61,6 +61,7 @@ public partial class EyeTrackWindow : Window
                             var p = Canvas.PointToClient(new PixelPoint(point.X, point.Y));
                             Canvas.SetLeft(mouse, p.X - mouse.Width  / 2);
                             Canvas.SetTop(mouse, p.Y  - mouse.Height / 2);
+                            mouse.Fill();
                             vm.CanvasPos = p;
                         });
                         break;
@@ -70,12 +71,12 @@ public partial class EyeTrackWindow : Window
                             vm.LeftEyeVector.X, vm.LeftEyeVector.Y);
                         var right = vm.RightGazeCalibration.CalculateGazePoint(
                             vm.RightEyeVector.X, vm.RightEyeVector.Y);
-                        Dispatcher.UIThread.Invoke(() =>
+                        Dispatcher.UIThread.InvokeAsync(() =>
                         {
-                            Canvas.SetLeft(LeftPosition, left.screenX   - LeftPosition.Width   / 2);
-                            Canvas.SetLeft(LeftPosition, left.screenY   - LeftPosition.Height  / 2);
-                            Canvas.SetLeft(RightPosition, right.screenX - RightPosition.Width  / 2);
-                            Canvas.SetLeft(RightPosition, right.screenY - RightPosition.Height / 2);
+                            Canvas.SetLeft(LeftPosition, (left.screenX + right.screenX) / 2 - LeftPosition.Width   / 2);
+                            Canvas.SetTop(LeftPosition, (left.screenY + right.screenY) / 2 - LeftPosition.Height  / 2);
+                            //Canvas.SetLeft(RightPosition, right.screenX - RightPosition.Width  / 2);
+                            //Canvas.SetTop(RightPosition, right.screenY - RightPosition.Height / 2);
                         });
                         break;
                 }

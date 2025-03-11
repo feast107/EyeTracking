@@ -13,6 +13,11 @@ public class DetectionStatistics
         get;
         set;
     } = 0;
+    public long NoEyesDetectedCount2//眼睛识别异常
+    {
+        get;
+        set;
+    } = 0;
     public long NoCheckLightCount//明瞳监测异常
     {
         get;
@@ -28,10 +33,16 @@ public class DetectionStatistics
         get;
         set;
     } = 0;
-    public long TotalFrames { 
+    public long TotalFrames
+    { 
         get; 
         set; 
     } = 0;//总帧数
+    public long SuccessFrames
+    {
+        get;
+        set;
+    } = 0;
     public double ErrorRate => (NoEyesDetectedCount + NoReflectionDetectedCount + NoPuilpDetectedCount) / (double)TotalFrames * 100;
 }
 public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
@@ -76,7 +87,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                 //识别两个眼睛中间区域亮度，当thismat大于lastmat一定值时，这张为亮，否则小于一定值时，这张为暗，否则缓存这张继续检测
                 var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
                 var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
-                double yuzhi = 100000; //XXX:999需要测试 173308
+                double yuzhi = 10000; //XXX:999需要测试 173308
                 double debug_num = s[0] - n[0];
                 if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
                 {
@@ -87,7 +98,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                     {
                         if (DetectReflection(light))
                         {
-
+                            Stats.SuccessFrames++;
                         }
                     }
                 }
@@ -98,8 +109,9 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
             }
             
             Trace((KeyedEyeDetectTrace.TraceKey)0, "总共处理" + Stats.TotalFrames.ToString());
-            Trace((KeyedEyeDetectTrace.TraceKey)1, "明暗异常" + (Stats.NoCheckLightCount).ToString());
-            Trace((KeyedEyeDetectTrace.TraceKey)2, "眼睛异常" + (Stats.NoEyesDetectedCount).ToString());
+            Trace((KeyedEyeDetectTrace.TraceKey)99, "成功" + Stats.SuccessFrames.ToString());
+            Trace((KeyedEyeDetectTrace.TraceKey)1, "眼睛异常" + (Stats.NoEyesDetectedCount).ToString());
+            Trace((KeyedEyeDetectTrace.TraceKey)2, "明暗异常" + (Stats.NoCheckLightCount).ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)3, "瞳孔异常" + (Stats.NoPuilpDetectedCount).ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)4, "亮斑异常" + (Stats.NoReflectionDetectedCount).ToString());
             LastMat.Dispose();
@@ -149,8 +161,13 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     private bool DetectEyes(Mat image, Rect[] middleEye, int i)
     {
 
-        p_eyes = EyeCascade.DetectMultiScale(image, 1.1, 4, 0, new Size(30, 30));
-        if (p_eyes.Length != 2 || p_eyes == null)
+        p_eyes = EyeCascade.DetectMultiScale(image, 1.1, 4, (HaarDetectionTypes)8, new Size(50, 50));
+        if (p_eyes == null)
+        {
+            Stats.NoEyesDetectedCount2++;
+            return false;
+        }
+        if (p_eyes.Length != 2)
         {
             Stats.NoEyesDetectedCount++;
             return false;
