@@ -61,7 +61,7 @@ public partial class EyeTrackWindow : Window
                             var p = Canvas.PointToClient(new PixelPoint(point.X, point.Y));
                             Canvas.SetLeft(mouse, p.X - mouse.Width  / 2);
                             Canvas.SetTop(mouse, p.Y  - mouse.Height / 2);
-                            mouse.Fill();
+                            //mouse.Fill();
                             vm.CanvasPos = p;
                         });
                         break;

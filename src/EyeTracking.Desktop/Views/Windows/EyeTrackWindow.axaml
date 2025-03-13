@@ -31,11 +31,11 @@
                         <Run Text="{Binding CanvasPos}" />
                     </TextBlock>
                 </StackPanel>
-                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Orientation="Horizontal">
+                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button Background="Black" Command="{Binding CleanRecordCommand}" Margin="0,0,8,0">清空</Button>
                     <Button Background="Black" Command="{Binding  CalibrationCommand}">校准</Button>
                 </StackPanel>
-                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right"
+                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Center"
                             Orientation="Horizontal">
 					<ListBox ItemsSource="{Binding  Tracker.Traces}">
                         <ListBox.ItemTemplate>
