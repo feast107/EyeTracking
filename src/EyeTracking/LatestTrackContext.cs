@@ -1,8 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Reflection.Emit;
-using EyeTracking.Extensions;
 using OpenCvSharp;
-using static System.Net.Mime.MediaTypeNames;
 using Cv2 = OpenCvSharp.Cv2;
 
 namespace EyeTracking;
@@ -50,8 +47,8 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
     private bool? isLastLight;
 
-    private Rect[] p_eyes = new Rect[2];
-    private Rect[] last_this_center = new Rect[2];
+    private          Rect[] p_eyes           = new Rect[2];
+    private readonly Rect[] last_this_center = new Rect[2];
 
     private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
