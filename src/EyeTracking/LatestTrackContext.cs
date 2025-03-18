@@ -53,9 +53,39 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     private Rect[] p_eyes = new Rect[2];
     private Rect[] last_this_center = new Rect[2];
 
-    private static readonly string XmlPath =
+private static readonly string XmlPath =
         Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_eye.xml");
+    private static readonly string FrontFaceXmlPath = 
+        Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_frontalface_alt.xml");
+    private static readonly string ProfileFaceXmlPath = 
+        Path.Combine(AppContext.BaseDirectory, "Resources/Haarcascade/haarcascade_profileface.xml");
 
+    private CascadeClassifier? _frontFaceCascade;
+    private CascadeClassifier? _profileFaceCascade;
+
+    [field: AllowNull, MaybeNull]
+    private CascadeClassifier FrontFaceCascade
+    {
+        get
+        {
+            if (_frontFaceCascade is not null) return _frontFaceCascade;
+            _frontFaceCascade = new CascadeClassifier();
+            if (_frontFaceCascade.Load(FrontFaceXmlPath)) return _frontFaceCascade;
+            throw new FileLoadException("Error: Unable to load front face cascade classifier!");
+        }
+    }
+
+    [field: AllowNull, MaybeNull]
+    private CascadeClassifier ProfileFaceCascade
+    {
+        get
+        {
+            if (_profileFaceCascade is not null) return _profileFaceCascade;
+            _profileFaceCascade = new CascadeClassifier();
+            if (_profileFaceCascade.Load(ProfileFaceXmlPath)) return _profileFaceCascade;
+            throw new FileLoadException("Error: Unable to load profile face cascade classifier!");
+        }
+    }
     private EyeDetectResult Result { get; set; } = new();
 
     //做统计
@@ -168,34 +198,189 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
     private bool DetectEyes(Mat image, Rect[] middleEye, int i)
     {
+        // 使用属性获取已加载的分类器
+        var facesFront = FrontFaceCascade.DetectMultiScale(
+            image, 1.1, 3, 
+            HaarDetectionTypes.ScaleImage, 
+            new Size(150, 150)
+        );
 
-        p_eyes = EyeCascade.DetectMultiScale(image, 1.1, 4, (HaarDetectionTypes)8, new Size(50, 50));
-        if (p_eyes.Length < 2)
+        if (facesFront.Length > 0)
         {
-            Stats.NoEyesDetectedCount2++;
-            return false;
+            // 在人脸区域内检测眼睛
+            var faceRect = facesFront[0];
+            var eyeRegionHeight = faceRect.Height / 3;
+            var eyeRegionWidth = faceRect.Width / 3;
+            var eyeRegionTop = faceRect.Y + faceRect.Height / 4;
+
+            // 左眼区域
+            var leftEyeRect = new Rect(
+                faceRect.X + faceRect.Width / 6,
+                eyeRegionTop,
+                eyeRegionWidth,
+                eyeRegionHeight
+            );
+
+            // 右眼区域
+            var rightEyeRect = new Rect(
+                faceRect.X + faceRect.Width / 2,
+                eyeRegionTop,
+                eyeRegionWidth,
+                eyeRegionHeight
+            );
+
+            // 确保矩形在图像范围内
+            leftEyeRect = new Rect(
+                Math.Max(0, leftEyeRect.X),
+                Math.Max(0, leftEyeRect.Y),
+                Math.Min(image.Cols - leftEyeRect.X, leftEyeRect.Width),
+                Math.Min(image.Rows - leftEyeRect.Y, leftEyeRect.Height)
+            );
+
+            rightEyeRect = new Rect(
+                Math.Max(0, rightEyeRect.X),
+                Math.Max(0, rightEyeRect.Y),
+                Math.Min(image.Cols - rightEyeRect.X, rightEyeRect.Width),
+                Math.Min(image.Rows - rightEyeRect.Y, rightEyeRect.Height)
+            );
+
+            p_eyes = new[] { leftEyeRect, rightEyeRect };
         }
-        if (p_eyes.Length > 2)
+        else 
         {
-            Stats.NoEyesDetectedCount++;
-            //return false;
+            // 尝试侧面人脸检测
+            var facesProfile = ProfileFaceCascade.DetectMultiScale(
+                image, 1.1, 3, 
+                HaarDetectionTypes.ScaleImage, 
+                new Size(150, 150)
+            );
+
+            if (facesProfile.Length > 0)
+            {
+                // 使用相同的眼睛区域提取逻辑
+                var faceRect = facesProfile[0];
+                var eyeRegionHeight = faceRect.Height / 3;
+                var eyeRegionWidth = faceRect.Width / 3;
+                var eyeRegionTop = faceRect.Y + faceRect.Height / 4;
+
+                // 根据侧脸调整眼睛位置
+                var eyeRect = new Rect(
+                    faceRect.X + faceRect.Width / 4,
+                    eyeRegionTop,
+                    eyeRegionWidth,
+                    eyeRegionHeight
+                );
+
+                // 确保矩形在图像范围内
+                eyeRect = new Rect(
+                    Math.Max(0, eyeRect.X),
+                    Math.Max(0, eyeRect.Y),
+                    Math.Min(image.Cols - eyeRect.X, eyeRect.Width),
+                    Math.Min(image.Rows - eyeRect.Y, eyeRect.Height)
+                );
+
+                // 在眼睛区域内进行眼睛检测
+                var eyes = EyeCascade.DetectMultiScale(
+                    new Mat(image, eyeRect),
+                    1.05, 6, 
+                    HaarDetectionTypes.ScaleImage,
+                    new Size(40, 40)
+                );
+
+                if (eyes.Length >= 1)
+                {
+                    p_eyes = new[] { new Rect(eyeRect.X + eyes[0].X, eyeRect.Y + eyes[0].Y, eyes[0].Width, eyes[0].Height) };
+                }
+                else
+                {
+                    Stats.NoEyesDetectedCount2++;
+                    return false;
+                }
+            }
+            else
+            {
+                // 如果人脸检测失败，尝试直接检测眼睛
+                var eyes = EyeCascade.DetectMultiScale(
+                    image, 1.05, 6, 
+                    HaarDetectionTypes.ScaleImage, 
+                    new Size(40, 40)
+                );
+
+                if (eyes.Length < 2)
+                {
+                    Stats.NoEyesDetectedCount2++;
+                    return false;
+                }
+
+                // 验证眼睛
+                var validatedEyes = new List<Rect>();
+                foreach (var eye in eyes.OrderBy(e => e.X))
+                {
+                    // 验证宽高比
+                    float aspectRatio = (float)eye.Width / eye.Height;
+                    if (aspectRatio < 0.4f || aspectRatio > 2.5f) continue;
+
+                    // 验证区域大小相对于图像
+                    float relativeSize = (float)(eye.Width * eye.Height) / (image.Rows * image.Cols);
+                    if (relativeSize < 0.01f || relativeSize > 0.15f) continue;
+
+                    validatedEyes.Add(eye);
+                }
+
+                if (validatedEyes.Count < 2)
+                {
+                    Stats.NoEyesDetectedCount++;
+                    return false;
+                }
+
+                // 验证两个眼睛的相对位置和大小
+                var left = validatedEyes[0];
+                var right = validatedEyes[1];
+
+                // 验证水平距离
+                float distance = right.X - (left.X + left.Width);
+                if (distance < 0)
+                {
+                    Stats.NoEyesDetectedCount++;
+                    return false;
+                }
+
+                // 验证大小相似性
+                float sizeRatio = (float)(left.Width * left.Height) / (right.Width * right.Height);
+                if (sizeRatio < 0.5f || sizeRatio > 2.0f)
+                {
+                    Stats.NoEyesDetectedCount++;
+                    return false;
+                }
+
+                // 验证垂直位置相似性
+                float verticalDiff = Math.Abs(left.Y - right.Y);
+                if (verticalDiff > left.Height)
+                {
+                    Stats.NoEyesDetectedCount++;
+                    return false;
+                }
+
+                p_eyes = new[] { left, right };
+            }
         }
-        p_eyes = p_eyes.ToArray().OrderBy(e => e.X).ToArray();
-        // 计算两个眼睛区域的中心点
-        Point center1 = new Point(p_eyes[0].X + p_eyes[0].Width / 2, p_eyes[0].Y + p_eyes[0].Height / 2);
-        Point center2 = new Point(p_eyes[1].X + p_eyes[1].Width / 2, p_eyes[1].Y + p_eyes[1].Height / 2);
-        Point center = new Point((center1.X + center2.X) / 2, (center1.Y + center2.Y) / 2);
 
-        // 计算新区域的宽度和高度，使其与其中一个眼睛区域一样大
-        int size = Math.Max(p_eyes[0].Width, p_eyes[1].Width);
-        Size newSize = new Size(size, size);
+        // 计算中间区域
+        if (p_eyes.Length >= 2)
+        {
+            var center1 = new Point(p_eyes[0].X + p_eyes[0].Width / 2, p_eyes[0].Y + p_eyes[0].Height / 2);
+            var center2 = new Point(p_eyes[1].X + p_eyes[1].Width / 2, p_eyes[1].Y + p_eyes[1].Height / 2);
+            var center = new Point((center1.X + center2.X) / 2, (center1.Y + center2.Y) / 2);
 
-        Point topLeft = new Point(center.X - newSize.Width / 2, center.Y - newSize.Height / 2);
+            var size = Math.Max(p_eyes[0].Width, p_eyes[1].Width);
+            var newSize = new Size(size, size);
+            var topLeft = new Point(center.X - newSize.Width / 2, center.Y - newSize.Height / 2);
 
-        // 创建一个新的Rect对象，表示中间区域
-        middleEye[i] = new Rect(topLeft, newSize);
-        return true;
+            middleEye[i] = new Rect(topLeft, newSize);
+            return true;
+        }
 
+        return false;
     }
 
     //瞳孔检测
