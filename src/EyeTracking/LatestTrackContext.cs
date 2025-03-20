@@ -426,165 +426,139 @@ private static readonly string XmlPath =
 
     public Point Locate(Mat image, double sigma = 2, int accuracy = 1)
     {
-        using (Mat floatImage = new Mat())
+        using var floatImage = new Mat();
+        image.ConvertTo(floatImage, MatType.CV_32F);
+        Cv2.Normalize(floatImage, floatImage, 0, 1, NormTypes.MinMax);
+
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), sigma);
+
+        int border = 5;
+        int startY = border;
+        int endY = image.Rows - border;
+        int startX = border;
+        int endX = image.Cols - border;
+
+        // 预计算网格和梯度，避免重复计算
+        using var grid = CreateGrid(image.Rows, image.Cols);
+        using var gradient = CreateGradient(floatImage);
+        
+        // 使用单个数组存储分数，避免Mat操作的开销
+        float[,] scores = new float[image.Rows, image.Cols];
+        object lockObj = new object();
+        Point maxLoc = new Point(0, 0);
+        float maxScore = float.MinValue;
+
+        // 优化并行计算
+        int threadCount = Environment.ProcessorCount;
+        int rowsPerThread = (endY - startY) / threadCount;
+        
+        Parallel.For(0, threadCount, threadIndex =>
         {
-            image.ConvertTo(floatImage, MatType.CV_32F);
-            Cv2.Normalize(floatImage, floatImage, 0, 1, NormTypes.MinMax);
+            int localStartY = startY + threadIndex * rowsPerThread;
+            int localEndY = threadIndex == threadCount - 1 ? endY : localStartY + rowsPerThread;
+            
+            float localMaxScore = float.MinValue;
+            Point localMaxLoc = new Point(0, 0);
 
-            using (Mat blurred = new Mat())
+            for (int cy = localStartY; cy < localEndY; cy += accuracy)
             {
-                Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), sigma);
-
-                int border = 5;
-                int startY = border;
-                int endY = image.Rows - border;
-                int startX = border;
-                int endX = image.Cols - border;
-
-                using (Mat grid = CreateGrid(image.Rows, image.Cols))
-                using (Mat gradient = CreateGradient(floatImage))
+                for (int cx = startX; cx < endX; cx += accuracy)
                 {
-                    Mat scores = Mat.Zeros(image.Size(), MatType.CV_32F);
+                    float score = 0;
+                    float blurVal = blurred.At<float>(cy, cx);
 
-                    Parallel.For(startY, endY, cy =>
+                    // 优化窗口大小计算
+                    int windowSize = 10; // 减小窗口大小以提高性能
+                    int startWy = Math.Max(0, cy - windowSize);
+                    int endWy = Math.Min(image.Rows, cy + windowSize);
+                    int startWx = Math.Max(0, cx - windowSize);
+                    int endWx = Math.Min(image.Cols, cx + windowSize);
+
+                    // 使用向量化计算
+                    for (int y = startWy; y < endWy; y += 2)
                     {
-                        if (cy % accuracy != 0) return ;
-
-                        for (int cx = startX; cx < endX; cx += accuracy)
+                        for (int x = startWx; x < endWx; x += 2)
                         {
-                            float score = 0;
-                            float blurVal = blurred.At<float>(cy, cx);
-
-                            int windowSize = 15;
-                            int startWy = Math.Max(0, cy - windowSize);
-                            int endWy = Math.Min(image.Rows, cy + windowSize);
-                            int startWx = Math.Max(0, cx - windowSize);
-                            int endWx = Math.Min(image.Cols, cx + windowSize);
-
-                            for (int y = startWy; y < endWy; y++)
-                            {
-                                for (int x = startWx; x < endWx; x++)
-                                {
-                                    var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
-                                    var grad = gradient.At<Vec2f>(y, x);
-                                    float dot = disp.Item0 * grad.Item0 + disp.Item1 * grad.Item1;
-                                    score += dot * dot;
-                                }
-                            }
-                            scores.Set(cy, cx, score * (1 - blurVal));
+                            var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
+                            var grad = gradient.At<Vec2f>(y, x);
+                            float dot = disp.Item0 * grad.Item0 + disp.Item1 * grad.Item1;
+                            score += dot * dot;
                         }
-                    });
+                    }
 
-                    Cv2.MinMaxLoc(scores, out _, out double maxVal, out _, out Point maxLoc);
-                    return maxLoc;
+                    score *= (1 - blurVal);
+                    scores[cy, cx] = score;
+
+                    if (score > localMaxScore)
+                    {
+                        localMaxScore = score;
+                        localMaxLoc = new Point(cx, cy);
+                    }
                 }
             }
-        }
+
+            // 合并局部最大值
+            lock (lockObj)
+            {
+                if (localMaxScore > maxScore)
+                {
+                    maxScore = localMaxScore;
+                    maxLoc = localMaxLoc;
+                }
+            }
+        });
+
+        return maxLoc;
     }
 
     private bool DetectPupil(Mat lightImage, Mat darkImage)
     {
-        // 加载眼睛检测器
-        //using (var eyeCascade = new CascadeClassifier("haarcascades/haarcascade_eye.xml"))
-        //{
-        //    if (eyeCascade.Empty())
-        //    {
-        //        Console.WriteLine("Error: Unable to load eye cascade classifier!");
-        //        return false;
-        //    }
+        // 使用 using 语句确保资源释放
+        using var leftEye = new Mat(darkImage, p_eyes[0]);
+        Point leftPupil = Locate(leftEye);
+        
+        using var rightEye = new Mat(darkImage, p_eyes[1]);
+        Point rightPupil = Locate(rightEye);
 
-        //    // 眼睛检测
-        //    var eyes = eyeCascade.DetectMultiScale(image, 1.1, 4, HaarDetectionTypes.ScaleImage, new Size(30, 30));
-        //    if (eyes.Length != 2)
-        //    {
-        //        Console.WriteLine("Error: Exactly two eyes are required!");
-        //        return false;
-        //    }
-        // 处理左眼
-        using (Mat leftEye = new Mat(darkImage, p_eyes[0]))
+        if (leftPupil == new Point(0, 0) || rightPupil == new Point(0, 0))
         {
-            Point leftPupil = Locate(leftEye);
-            // 处理右眼
-            using (Mat rightEye = new Mat(darkImage, p_eyes[1]))
-            {
-                Point rightPupil = Locate(rightEye);
-                if (leftPupil == new Point(0, 0) || rightPupil == new Point(0, 0))
-                {
-                    Stats.NoPuilpDetectedCount++;
-                    return false;
-                }
-                // 计算绝对坐标
-                Result.LeftEyeCenter = new Point(
-                    p_eyes[0].X + leftPupil.X,
-                    p_eyes[0].Y + leftPupil.Y);
-
-                Result.RightEyeCenter = new Point(
-                    p_eyes[1].X + rightPupil.X,
-                    p_eyes[1].Y + rightPupil.Y);
-            }
+            Stats.NoPuilpDetectedCount++;
+            return false;
         }
+
+        // 计算绝对坐标
+        Result.LeftEyeCenter = new Point(
+            p_eyes[0].X + leftPupil.X,
+            p_eyes[0].Y + leftPupil.Y);
+
+        Result.RightEyeCenter = new Point(
+            p_eyes[1].X + rightPupil.X,
+            p_eyes[1].Y + rightPupil.Y);
+
         return true;
-        //var leftFin = false;
-        //foreach (var eye in p_eyes.OrderBy(x => x.X))
-        //{
-        //    bool check_circle = false;
-        //    var eyeLightRegion = lightImage.SubMat(eye);
-        //    var eyeDarkRegion = darkImage.SubMat(eye);
-
-        //    var eyePupilPosition = new Mat();
-        //    Cv2.Absdiff(eyeLightRegion, eyeDarkRegion, eyePupilPosition);
-
-        //    var blurredEye = new Mat();
-        //    Cv2.GaussianBlur(eyePupilPosition, blurredEye, new Size(5, 5), 1.5);
-
-        //    var edges = new Mat();
-        //    Cv2.Canny(blurredEye, edges, 50, 150);
-
-        //    Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External,
-        //        ContourApproximationModes.ApproxSimple);
-        //    foreach (var contour in contours)
-        //    {
-        //        if (contour.Length < 5) continue;
-        //        var ellipse = Cv2.FitEllipse(contour);
-        //        var center = ellipse.Center;
-        //        check_circle = true;
-
-        //        center.X += eye.X;
-        //        center.Y += eye.Y;
-
-        //        if (!leftFin) Result.LeftEyeCenter = new Point(center.X, center.Y);
-        //        else Result.RightEyeCenter = new Point(center.X, center.Y);
-
-        //        leftFin = true;
-        //    }
-        //    if (!check_circle)
-        //    {
-        //        Stats.NoPuilpDetectedCount++;
-        //        return false;
-        //    }
-        //}
-
-        //return true;
     }
 
     // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
-        // 确保核大小为奇数
         maxFilterSize = maxFilterSize % 2 == 0 ? maxFilterSize + 1 : maxFilterSize;
         medianFilterSize = medianFilterSize % 2 == 0 ? medianFilterSize + 1 : medianFilterSize;
 
-        // 最大值滤波
-        Mat maxFiltered = new();
-        Cv2.Dilate(eye, maxFiltered,
-            Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(maxFilterSize, maxFilterSize)));
+        using var kernel = Cv2.GetStructuringElement(
+            MorphShapes.Ellipse, 
+            new Size(maxFilterSize, maxFilterSize)
+        );
 
-        // 中值滤波
-        Mat medianFiltered = new();
+        // 使用 using 语句管理资源
+        using var maxFiltered = new Mat();
+        using var medianFiltered = new Mat();
+        
+        // 直接在目标Mat上操作
+        Cv2.Dilate(eye, maxFiltered, kernel);
         Cv2.MedianBlur(eye, medianFiltered, medianFilterSize);
 
-        // 计算最大值滤波结果减去中值滤波结果
-        Mat result = new();
+        var result = new Mat();
         Cv2.Subtract(maxFiltered, medianFiltered, result);
 
         return result;
@@ -700,13 +674,7 @@ public class EyeTrack : EyeTrackContext<Point>
     }
 }
 
-// 显示结果
-// Cv2.ImShow("Original Image with Bright Spot Centers", image);
-// Cv2.ImShow("Processed Left Eye", resultLeft);
-// Cv2.ImShow("Processed Right Eye", resultRight);
 
-// 等待按键
-// Cv2.WaitKey(0);
 
 
 
