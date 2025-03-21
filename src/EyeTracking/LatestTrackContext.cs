@@ -108,7 +108,6 @@ private static readonly string XmlPath =
     }
     public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
     {
-        Debug(DebugHint.Origin, thisMat);
         if (LastMat is not null)
         {
             Stats.TotalFrames++;//开始总帧计数
@@ -119,7 +118,7 @@ private static readonly string XmlPath =
                 var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
                 var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
                 last_this_center[0] = last_this_center[1];
-                double yuzhi = 10000; //XXX:999需要测试 173308
+                double yuzhi = 2000; //XXX:999需要测试 173308
                 double debug_num = s[0] - n[0];
                 if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
                 {
@@ -131,6 +130,42 @@ private static readonly string XmlPath =
                         if (DetectReflection(light))
                         {
                             Stats.SuccessFrames++;
+                            // 提取左右眼区域
+                            Mat leftEyeMat = new Mat(thisMat, p_eyes[0]);
+                            Mat rightEyeMat = new Mat(thisMat, p_eyes[1]);
+                            Point leftCenter = (Point)Result.LeftEyeCenter;
+                            Point rightCenter = (Point)Result.RightEyeCenter;
+
+                            // 将点坐标转换为相对子Mat的坐标
+                            Point leftEyeCenterInSub = new Point(
+                                leftCenter.X - p_eyes[0].X,
+                                leftCenter.Y - p_eyes[0].Y
+                            );
+                            Point leftPointInSub = new Point(
+                                Result.Left.X - p_eyes[1].X,
+                                Result.Left.Y - p_eyes[1].Y
+                            );
+                            Point rightEyeCenterInSub = new Point(
+                                rightCenter.X - p_eyes[1].X,
+                                rightCenter.Y - p_eyes[1].Y
+                            );
+                            Point rightPointInSub = new Point(
+                                Result.Right.X - p_eyes[1].X,
+                                Result.Right.Y - p_eyes[1].Y
+                            );
+
+                            // 在左眼Mat上绘制点
+                            Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
+                            Cv2.Circle(leftEyeMat, leftPointInSub, 2, Scalar.Red, -1);
+
+                            // 在右眼Mat上绘制点
+                            Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
+                            Cv2.Circle(rightEyeMat, rightPointInSub, 2, Scalar.Red, -1);
+
+                            // 调试显示
+                            Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
+                            Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
+                            Debug(DebugHint.Origin, thisMat);          // 原始图像
                         }
                     }
                 }
@@ -376,7 +411,7 @@ private static readonly string XmlPath =
             var newSize = new Size(size, size);
             var topLeft = new Point(center.X - newSize.Width / 2, center.Y - newSize.Height / 2);
 
-            middleEye[i] = new Rect(topLeft, newSize);
+            middleEye[i] = p_eyes[0];//new Rect(topLeft, newSize);
             return true;
         }
 
