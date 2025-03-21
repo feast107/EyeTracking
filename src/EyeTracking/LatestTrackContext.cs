@@ -108,6 +108,7 @@ private static readonly string XmlPath =
     }
     public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
     {
+        Debug(DebugHint.Origin, thisMat);          // 原始图像
         if (LastMat is not null)
         {
             Stats.TotalFrames++;//开始总帧计数
@@ -142,30 +143,30 @@ private static readonly string XmlPath =
                                 leftCenter.Y - p_eyes[0].Y
                             );
                             Point leftPointInSub = new Point(
-                                Result.Left.X - p_eyes[1].X,
-                                Result.Left.Y - p_eyes[1].Y
+                                Result.Left.X + leftEyeCenterInSub.X,
+                                Result.Left.Y + leftEyeCenterInSub.Y
                             );
                             Point rightEyeCenterInSub = new Point(
                                 rightCenter.X - p_eyes[1].X,
                                 rightCenter.Y - p_eyes[1].Y
                             );
                             Point rightPointInSub = new Point(
-                                Result.Right.X - p_eyes[1].X,
-                                Result.Right.Y - p_eyes[1].Y
+                                Result.Right.X + rightEyeCenterInSub.X,
+                                Result.Right.Y + rightEyeCenterInSub.Y
                             );
 
                             // 在左眼Mat上绘制点
                             Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
-                            Cv2.Circle(leftEyeMat, leftPointInSub, 2, Scalar.Red, -1);
+                            Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
                             // 在右眼Mat上绘制点
                             Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
-                            Cv2.Circle(rightEyeMat, rightPointInSub, 2, Scalar.Red, -1);
+                            Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
 
-                            // 调试显示
+                            // 调试显示Candidate
                             Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
                             Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
-                            Debug(DebugHint.Origin, thisMat);          // 原始图像
+                            Debug(DebugHint.Bin_Subtraction, thisMat);          // 成功图像
                         }
                     }
                 }
