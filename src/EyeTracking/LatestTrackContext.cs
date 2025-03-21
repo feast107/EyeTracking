@@ -442,6 +442,7 @@ private static readonly string XmlPath =
     {
         Mat gradX = new Mat();
         Mat gradY = new Mat();
+        
         Cv2.Sobel(image, gradX, MatType.CV_32F, 1, 0);
         Cv2.Sobel(image, gradY, MatType.CV_32F, 0, 1);
 
@@ -450,8 +451,8 @@ private static readonly string XmlPath =
         {
             for (int x = 0; x < image.Cols; x++)
             {
-                float gx = gradY.At<float>(y, x);
-                float gy = gradX.At<float>(y, x);
+                float gx = gradX.At<float>(y, x);
+                float gy = gradY.At<float>(y, x);
                 float norm = (float)Math.Sqrt(gx * gx + gy * gy);
                 if (norm == 0) norm = 1;
                 gradient.Set(y, x, new Vec2f(gy / norm, gx / norm));
@@ -467,7 +468,7 @@ private static readonly string XmlPath =
         Cv2.Normalize(floatImage, floatImage, 0, 1, NormTypes.MinMax);
 
         using var blurred = new Mat();
-        Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), sigma);
+        Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), sigma, sigma);
 
         int border = 5;
         int startY = border;
@@ -477,7 +478,7 @@ private static readonly string XmlPath =
 
         // 预计算网格和梯度，避免重复计算
         using var grid = CreateGrid(image.Rows, image.Cols);
-        using var gradient = CreateGradient(floatImage);
+        using var gradient = CreateGradient(blurred);
         
         // 使用单个数组存储分数，避免Mat操作的开销
         float[,] scores = new float[image.Rows, image.Cols];
@@ -505,21 +506,21 @@ private static readonly string XmlPath =
                     float blurVal = blurred.At<float>(cy, cx);
 
                     // 优化窗口大小计算
-                    int windowSize = 15; // 减小窗口大小以提高性能
+                    int windowSize = 10; // 减小窗口大小以提高性能
                     int startWy = Math.Max(0, cy - windowSize);
                     int endWy = Math.Min(image.Rows, cy + windowSize);
                     int startWx = Math.Max(0, cx - windowSize);
                     int endWx = Math.Min(image.Cols, cx + windowSize);
 
                     // 使用向量化计算
-                    for (int y = startWy; y < endWy; y += 2)
+                    for (int y = startWy; y < endWy; y++)
                     {
-                        for (int x = startWx; x < endWx; x += 2)
+                        for (int x = startWx; x < endWx; x++)
                         {
                             var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
                             var grad = gradient.At<Vec2f>(y, x);
                             float dot = disp.Item0 * grad.Item0 + disp.Item1 * grad.Item1;
-                            score += dot * dot;
+                            score += dot * dot;  
                         }
                     }
 

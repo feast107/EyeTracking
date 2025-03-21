@@ -397,3 +397,5 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+/src/EyeTracking/face_eye_detect.cpp
+/src/EyeTracking/PupilDetector.py
