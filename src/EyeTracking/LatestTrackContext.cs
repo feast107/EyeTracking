@@ -119,7 +119,7 @@ private static readonly string XmlPath =
                 var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
                 var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
                 last_this_center[0] = last_this_center[1];
-                double yuzhi = 2000; //XXX:999需要测试 173308
+                double yuzhi = 20000; //XXX:999需要测试 173308
                 double debug_num = s[0] - n[0];
                 if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
                 {
@@ -132,8 +132,8 @@ private static readonly string XmlPath =
                         {
                             Stats.SuccessFrames++;
                             // 提取左右眼区域
-                            Mat leftEyeMat = new Mat(thisMat, p_eyes[0]);
-                            Mat rightEyeMat = new Mat(thisMat, p_eyes[1]);
+                            Mat leftEyeMat = new Mat(light, p_eyes[0]);
+                            Mat rightEyeMat = new Mat(light, p_eyes[1]);
                             Point leftCenter = (Point)Result.LeftEyeCenter;
                             Point rightCenter = (Point)Result.RightEyeCenter;
 
@@ -505,7 +505,7 @@ private static readonly string XmlPath =
                     float blurVal = blurred.At<float>(cy, cx);
 
                     // 优化窗口大小计算
-                    int windowSize = 10; // 减小窗口大小以提高性能
+                    int windowSize = 15; // 减小窗口大小以提高性能
                     int startWy = Math.Max(0, cy - windowSize);
                     int endWy = Math.Min(image.Rows, cy + windowSize);
                     int startWx = Math.Max(0, cx - windowSize);
