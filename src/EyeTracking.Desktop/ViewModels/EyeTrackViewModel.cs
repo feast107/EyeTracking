@@ -205,9 +205,17 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     private void Reset()
     {
         if (Tracker != null) return;
-        Tracker            =  this.ServiceProvider().GetRequiredService<EyeTrackContext<EyeDetectResult>>();
-        Tracker.Parameters =  Parameters;
-        Tracker.OnDebug    += OnDebug;
+        
+        // 配置图像保存参数
+        Parameters.EnableImageSave = true;
+        Parameters.ImageSavePath = @"F:\EyeTrackingData";
+        Parameters.SaveWithTimestamp = true;
+        Parameters.ImageFormat = "png";
+        
+        // 创建跟踪器实例
+        Tracker = this.ServiceProvider().GetRequiredService<EyeTrackContext<EyeDetectResult>>();
+        Tracker.Parameters = Parameters;
+        Tracker.OnDebug += OnDebug;
     }
 
 

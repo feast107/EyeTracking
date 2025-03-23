@@ -12,7 +12,11 @@ public record EyeDetectParameters
     public int MaxVerticalDistance { get; set; } = 20;
     
     public int AccumulatePupilLight => DesiredEyeRadius * DesiredEyeRadius * AveragePupilLight * 4;
-
+    // 图像保存相关配置
+    public bool EnableImageSave { get; set; } = true;
+    public string ImageSavePath { get; set; } = Path.Combine(AppContext.BaseDirectory, "EyeImages");
+    public bool SaveWithTimestamp { get; set; } = true;
+    public string ImageFormat { get; set; } = "png";
     public Rect GetDesiredEyeRect(Point center, Size size)
     {
         var radius = DesiredEyeRadius;

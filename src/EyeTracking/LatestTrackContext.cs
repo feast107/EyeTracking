@@ -48,6 +48,7 @@ public class DetectionStatistics
 }
 public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
+
     private bool? isLastLight;
 
     private Rect[] p_eyes = new Rect[2];
@@ -154,7 +155,8 @@ private static readonly string XmlPath =
                                 Result.Right.X + rightEyeCenterInSub.X,
                                 Result.Right.Y + rightEyeCenterInSub.Y
                             );
-
+Mat leftEyeOriginal = leftEyeMat.Clone();
+Mat rightEyeOriginal = rightEyeMat.Clone();
                             // 在左眼Mat上绘制点
                             Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
                             Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
@@ -162,7 +164,11 @@ private static readonly string XmlPath =
                             // 在右眼Mat上绘制点
                             Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
                             Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
-
+                            // 保存原始图像和渲染后的图像
+                            SaveProcessedEyeImages(leftEyeMat, rightEyeMat, leftEyeOriginal, rightEyeOriginal, Stats.TotalFrames);
+                            // 释放临时创建的Mat
+                            leftEyeOriginal.Dispose();
+                            rightEyeOriginal.Dispose();
                             // 调试显示Candidate
                             Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
                             Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
@@ -513,9 +519,9 @@ private static readonly string XmlPath =
                     int endWx = Math.Min(image.Cols, cx + windowSize);
 
                     // 使用向量化计算
-                    for (int y = startWy; y < endWy; y++)
+                    for (int y = startWy; y < endWy; y+=2)
                     {
-                        for (int x = startWx; x < endWx; x++)
+                        for (int x = startWx; x < endWx; x+=2)
                         {
                             var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
                             var grad = gradient.At<Vec2f>(y, x);
@@ -573,9 +579,57 @@ private static readonly string XmlPath =
             p_eyes[1].X + rightPupil.X,
             p_eyes[1].Y + rightPupil.Y);
 
+        // 添加保存图像的代码
+
         return true;
     }
+private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye, Mat leftEyeOriginal, Mat rightEyeOriginal, long frameNumber)
+{
+    if (!Parameters.EnableImageSave) return;
 
+    try
+    {
+        // 创建保存目录
+        string leftEyeDir = Path.Combine(Parameters.ImageSavePath, "LeftEye");
+        string rightEyeDir = Path.Combine(Parameters.ImageSavePath, "RightEye");
+
+        // 确保目录存在
+        Directory.CreateDirectory(leftEyeDir);
+        Directory.CreateDirectory(rightEyeDir);
+
+        // 生成文件名
+        string timestamp = Parameters.SaveWithTimestamp ? 
+            $"_{DateTime.Now:yyyyMMdd_HHmmss}" : "";
+        
+        // 生成原始图像和渲染图像的文件名
+        string leftOriginalFileName = Path.Combine(leftEyeDir, 
+            $"left_eye_{frameNumber}_original{timestamp}.{Parameters.ImageFormat}");
+        string leftRenderedFileName = Path.Combine(leftEyeDir, 
+            $"left_eye_{frameNumber}_rendered{timestamp}.{Parameters.ImageFormat}");
+        string rightOriginalFileName = Path.Combine(rightEyeDir, 
+            $"right_eye_{frameNumber}_original{timestamp}.{Parameters.ImageFormat}");
+        string rightRenderedFileName = Path.Combine(rightEyeDir, 
+            $"right_eye_{frameNumber}_rendered{timestamp}.{Parameters.ImageFormat}");
+
+        // 保存图像
+        var imwriteParams = new int[]
+        {
+            (int)(Parameters.ImageFormat.ToLower() == "png" ? 
+                ImwriteFlags.PngCompression : ImwriteFlags.JpegQuality),
+            90  // 压缩质量
+        };
+
+        // 保存原始图像和渲染后的图像
+        leftEyeOriginal.ImWrite(leftOriginalFileName, imwriteParams);
+        leftEye.ImWrite(leftRenderedFileName, imwriteParams);
+        rightEyeOriginal.ImWrite(rightOriginalFileName, imwriteParams);
+        rightEye.ImWrite(rightRenderedFileName, imwriteParams);
+    }
+    catch (Exception)
+    {
+        // 暂时忽略保存失败的错误
+    }
+}
     // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
