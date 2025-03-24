@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <LangVersion>preview</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -9,23 +9,27 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Antelcat.AutoGen" Version="2.0.0-preview2" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-        <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
-        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
+        <PackageReference Include="Antelcat.AutoGen" Version="2.0.0-preview2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2"/>
+        <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616"/>
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616"/>
         <PackageReference Include="PolySharp" Version="1.15.0">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
-        <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0" />
-        <PackageReference Include="MathNet.Numerics" Version="4.0.0" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-	</ItemGroup>
+        <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0"/>
+        <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0"/>
+        <PackageReference Include="MathNet.Numerics" Version="4.0.0"/>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+    </ItemGroup>
 
     <ItemGroup>
         <None Include="Resources/**/*.*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\EyeTracking.Windows.CLR.Detect\EyeTracking.Windows.CLR.Detect.vcxproj" />
     </ItemGroup>
 </Project>
