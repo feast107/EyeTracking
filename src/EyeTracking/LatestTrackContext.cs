@@ -107,26 +107,39 @@ private static readonly string XmlPath =
             throw new FileLoadException("Error: Unable to load eye cascade classifier!");
         }
     }
-    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
-    {
-        Debug(DebugHint.Origin, thisMat);          // 原始图像
-        if (LastMat is not null)
-        {
-            Stats.TotalFrames++;//开始总帧计数
+    private double CalculateDynamicThreshold(Mat image, Rect rect)
+{
+    using var roi = new Mat(image, rect);
+    var mean = Cv2.Mean(roi);
+    var stdDev = new Scalar();
+    Cv2.MeanStdDev(roi, out _, out stdDev);
+    
+    // 根据均值和标准差计算动态阈值
+    return mean[0] * rect.Width * rect.Height * 0.15 + stdDev[0] * rect.Width * rect.Height * 0.1;
+}
 
-            if (DetectEyes(thisMat, last_this_center, 1))
+    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
+{
+    Debug(DebugHint.Origin, thisMat);
+    if (LastMat is not null)
+    {
+        Stats.TotalFrames++;
+
+        if (DetectEyes(thisMat, last_this_center, 1))
+        {
+            var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
+            var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
+            last_this_center[0] = last_this_center[1];
+
+            // 使用动态阈值
+            double dynamicThreshold = CalculateDynamicThreshold(thisMat, last_this_center[1]);
+            double brightnessDiff = Math.Abs(s[0] - n[0]);
+
+            if (brightnessDiff > dynamicThreshold)
             {
-                //识别两个眼睛中间区域亮度，当thismat大于lastmat一定值时，这张为亮，否则小于一定值时，这张为暗，否则缓存这张继续检测
-                var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
-                var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
-                last_this_center[0] = last_this_center[1];
-                double yuzhi = 20000; //XXX:999需要测试 173308
-                double debug_num = s[0] - n[0];
-                if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
-                {
-                    isLastLight = s[0] > n[0];
-                    var light = isLastLight.Value ? LastMat : thisMat;
-                    var dark = isLastLight.Value ? thisMat : LastMat;
+                isLastLight = s[0] > n[0];
+                var light = isLastLight.Value ? LastMat : thisMat;
+                var dark = isLastLight.Value ? thisMat : LastMat;
                     if (DetectPupil(light, dark))
                     {
                         if (DetectReflection(light))
