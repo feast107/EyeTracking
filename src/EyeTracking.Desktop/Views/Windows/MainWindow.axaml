@@ -73,15 +73,15 @@
                         </Grid>
                         <Grid Grid.Row="0" Grid.Column="1">
                             <Image Source="{Binding Subtraction}" />
-                            <TextBlock>差值</TextBlock>
+                            <TextBlock>左眼明瞳</TextBlock>
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="0">
                             <Image Source="{Binding BinSubtraction}" />
-                            <TextBlock>二值化差值</TextBlock>
+                            <TextBlock>总渲染</TextBlock>
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="1">
                             <Image Source="{Binding Output}" />
-                            <TextBlock>输出</TextBlock>
+                            <TextBlock>左眼暗瞳</TextBlock>
                         </Grid>
                     </Grid>
                     <ListBox Grid.Column="1" ItemsSource="{Binding Debugs}">

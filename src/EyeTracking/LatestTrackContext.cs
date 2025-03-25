@@ -131,7 +131,6 @@ private static readonly string XmlPath =
             var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
             last_this_center[0] = last_this_center[1];
 
-            // 使用动态阈值
             double dynamicThreshold = CalculateDynamicThreshold(thisMat, last_this_center[1]);
             double brightnessDiff = Math.Abs(s[0] - n[0]);
 
@@ -140,19 +139,20 @@ private static readonly string XmlPath =
                 isLastLight = s[0] > n[0];
                 var light = isLastLight.Value ? LastMat : thisMat;
                 var dark = isLastLight.Value ? thisMat : LastMat;
-                    if (DetectPupil(light, dark))
+                if (DetectPupil(light, dark))
+                {
+                    if (DetectReflection(light))
                     {
-                        if (DetectReflection(light))
+                        Stats.SuccessFrames++;
+                        if (true) // 单眼调试模式
                         {
-                            Stats.SuccessFrames++;
-                            if (true)
-                            {//单眼debug
-                                // 提取左右眼区域
-                                Mat lightEyeMat = new Mat(light, p_eyes[0]);
-                                Mat darkEyeMat = new Mat(dark, p_eyes[0]);
+                            using (var lightEyeMat = new Mat(light, p_eyes[0]))
+                            using (var darkEyeMat = new Mat(dark, p_eyes[0]))
+                            using (var lightEyeOriginal = lightEyeMat.Clone())
+                            using (var darkEyeOriginal = darkEyeMat.Clone())
+                            {
                                 Point leftCenter = (Point)Result.LeftEyeCenter;
 
-                                // 将点坐标转换为相对子Mat的坐标
                                 Point leftEyeCenterInSub = new Point(
                                     leftCenter.X - p_eyes[0].X,
                                     leftCenter.Y - p_eyes[0].Y
@@ -162,29 +162,28 @@ private static readonly string XmlPath =
                                     Result.Left.Y + leftEyeCenterInSub.Y
                                 );
 
-                                // 在左眼Mat上绘制点
-                                Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
                                 Cv2.Circle(darkEyeMat, leftPointInSub, 1, Scalar.White, -1);
-
-                                // 在右眼Mat上绘制点
-                                Cv2.Circle(lightEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(lightEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
                                 Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
-                                // 调试显示Candidate
-                                Debug(DebugHint.Subtraction, lightEyeMat);  // 显示左眼区域
-                                Debug(DebugHint.Output, darkEyeMat);      // 显示右眼区域及绿点
-                                Debug(DebugHint.Bin_Subtraction, thisMat);
+                                SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal, Stats.TotalFrames);
 
+                                Debug(DebugHint.Subtraction, lightEyeMat);
+                                Debug(DebugHint.Output, darkEyeMat);
+                                Debug(DebugHint.Bin_Subtraction, thisMat);
                             }
-                            else
+                        }
+                        else // 双眼模式
+                        {
+                            using (var leftEyeMat = new Mat(light, p_eyes[0]))
+                            using (var rightEyeMat = new Mat(light, p_eyes[1]))
+                            using (var leftEyeOriginal = leftEyeMat.Clone())
+                            using (var rightEyeOriginal = rightEyeMat.Clone())
                             {
-                                // 提取左右眼区域
-                                Mat leftEyeMat = new Mat(light, p_eyes[0]);
-                                Mat rightEyeMat = new Mat(dark, p_eyes[1]);
                                 Point leftCenter = (Point)Result.LeftEyeCenter;
                                 Point rightCenter = (Point)Result.RightEyeCenter;
 
-                                // 将点坐标转换为相对子Mat的坐标
                                 Point leftEyeCenterInSub = new Point(
                                     leftCenter.X - p_eyes[0].X,
                                     leftCenter.Y - p_eyes[0].Y
@@ -202,32 +201,26 @@ private static readonly string XmlPath =
                                     Result.Right.Y + rightEyeCenterInSub.Y
                                 );
 
-                                // 在左眼Mat上绘制点
-                                Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
                                 Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
-
-                                // 在右眼Mat上绘制点
-                                Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
                                 Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
 
-                                // 调试显示Candidate
-                                Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
-                                Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
+                                SaveProcessedEyeImages(leftEyeMat, rightEyeMat, leftEyeOriginal, rightEyeOriginal, Stats.TotalFrames);
+
+                                Debug(DebugHint.Subtraction, leftEyeMat);
+                                Debug(DebugHint.Output, rightEyeMat);
                                 Debug(DebugHint.Bin_Subtraction, thisMat);
                             }
                         }
                     }
                 }
-                else
-                {
-                    Stats.NoCheckLightCount++;
-                    last_this_center[0] = last_this_center[1];
-                    LastMat.Dispose();
-                    LastMat = thisMat;
-                    result = Result;
-                    return;
-                }
             }
+            else
+            {
+                Stats.NoCheckLightCount++;
+            }
+        }
 
             Trace((KeyedEyeDetectTrace.TraceKey)0, "总共处理" + Stats.TotalFrames.ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)99, "成功" + Stats.SuccessFrames.ToString());
@@ -604,8 +597,8 @@ private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye, Mat leftEyeOrigin
     try
     {
         // 创建保存目录
-        string leftEyeDir = Path.Combine(Parameters.ImageSavePath, "LeftEye");
-        string rightEyeDir = Path.Combine(Parameters.ImageSavePath, "RightEye");
+        string leftEyeDir = Path.Combine(Parameters.ImageSavePath, "Bright_Pupil");
+        string rightEyeDir = Path.Combine(Parameters.ImageSavePath, "Dark_Pupil");
 
         // 确保目录存在
         Directory.CreateDirectory(leftEyeDir);
@@ -624,13 +617,13 @@ private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye, Mat leftEyeOrigin
         
         // 修改文件名，加入坐标信息
         string leftOriginalFileName = Path.Combine(leftEyeDir, 
-            $"left_eye_{frameNumber}{leftCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
+            $"left_eye_Bright_Pupil_{frameNumber}{leftCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
         string leftRenderedFileName = Path.Combine(leftEyeDir, 
-            $"left_eye_{frameNumber}{leftCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
+            $"left_eye_Bright_Pupil_{frameNumber}{leftCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
         string rightOriginalFileName = Path.Combine(rightEyeDir, 
-            $"right_eye_{frameNumber}{rightCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
+            $"left_eye_Dark_Pupil_{frameNumber}{rightCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
         string rightRenderedFileName = Path.Combine(rightEyeDir, 
-            $"right_eye_{frameNumber}{rightCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
+            $"left_eye_Dark_Pupil_{frameNumber}{rightCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
 
 
         // 保存图像
