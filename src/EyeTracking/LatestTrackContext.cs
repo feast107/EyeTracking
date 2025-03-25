@@ -118,64 +118,103 @@ private static readonly string XmlPath =
                 //识别两个眼睛中间区域亮度，当thismat大于lastmat一定值时，这张为亮，否则小于一定值时，这张为暗，否则缓存这张继续检测
                 var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
                 var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
-                last_this_center[0] = last_this_center[1];
-                double yuzhi = 20000; //XXX:999需要测试 173308
+                //last_this_center[0] = last_this_center[1];
+                double yuzhi = 200000; //XXX:999需要测试 173308
                 double debug_num = s[0] - n[0];
                 if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
                 {
                     isLastLight = s[0] > n[0];
-                    var light = isLastLight.Value ? LastMat : thisMat;
-                    var dark = isLastLight.Value ? thisMat : LastMat;
+                    var light = s[0] > n[0] ? LastMat : thisMat;
+                    var dark = s[0] > n[0] ? thisMat : LastMat;
                     if (DetectPupil(light, dark))
                     {
                         if (DetectReflection(light))
                         {
                             Stats.SuccessFrames++;
-                            // 提取左右眼区域
-                            Mat leftEyeMat = new Mat(light, p_eyes[0]);
-                            Mat rightEyeMat = new Mat(light, p_eyes[1]);
-                            Point leftCenter = (Point)Result.LeftEyeCenter;
-                            Point rightCenter = (Point)Result.RightEyeCenter;
+                            if (true)
+                            {//单眼debug
+                                // 提取左右眼区域
+                                Mat lightEyeMat = new Mat(light, p_eyes[0]);
+                                Mat darkEyeMat = new Mat(dark, p_eyes[0]);
+                                Point leftCenter = (Point)Result.LeftEyeCenter;
 
-                            // 将点坐标转换为相对子Mat的坐标
-                            Point leftEyeCenterInSub = new Point(
-                                leftCenter.X - p_eyes[0].X,
-                                leftCenter.Y - p_eyes[0].Y
-                            );
-                            Point leftPointInSub = new Point(
-                                Result.Left.X + leftEyeCenterInSub.X,
-                                Result.Left.Y + leftEyeCenterInSub.Y
-                            );
-                            Point rightEyeCenterInSub = new Point(
-                                rightCenter.X - p_eyes[1].X,
-                                rightCenter.Y - p_eyes[1].Y
-                            );
-                            Point rightPointInSub = new Point(
-                                Result.Right.X + rightEyeCenterInSub.X,
-                                Result.Right.Y + rightEyeCenterInSub.Y
-                            );
+                                // 将点坐标转换为相对子Mat的坐标
+                                Point leftEyeCenterInSub = new Point(
+                                    leftCenter.X - p_eyes[0].X,
+                                    leftCenter.Y - p_eyes[0].Y
+                                );
+                                Point leftPointInSub = new Point(
+                                    Result.Left.X + leftEyeCenterInSub.X,
+                                    Result.Left.Y + leftEyeCenterInSub.Y
+                                );
 
-                            // 在左眼Mat上绘制点
-                            Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
-                            Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
+                                // 在左眼Mat上绘制点
+                                Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(darkEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
-                            // 在右眼Mat上绘制点
-                            Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
-                            Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
+                                // 在右眼Mat上绘制点
+                                Cv2.Circle(lightEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
-                            // 调试显示Candidate
-                            Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
-                            Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
-                            Debug(DebugHint.Bin_Subtraction, thisMat);          // 成功图像
+                                // 调试显示Candidate
+                                Debug(DebugHint.Subtraction, lightEyeMat);  // 显示左眼区域
+                                Debug(DebugHint.Output, darkEyeMat);      // 显示右眼区域及绿点
+                                Debug(DebugHint.Bin_Subtraction, thisMat);
+
+                            }
+                            else
+                            {
+                                // 提取左右眼区域
+                                Mat leftEyeMat = new Mat(light, p_eyes[0]);
+                                Mat rightEyeMat = new Mat(dark, p_eyes[1]);
+                                Point leftCenter = (Point)Result.LeftEyeCenter;
+                                Point rightCenter = (Point)Result.RightEyeCenter;
+
+                                // 将点坐标转换为相对子Mat的坐标
+                                Point leftEyeCenterInSub = new Point(
+                                    leftCenter.X - p_eyes[0].X,
+                                    leftCenter.Y - p_eyes[0].Y
+                                );
+                                Point leftPointInSub = new Point(
+                                    Result.Left.X + leftEyeCenterInSub.X,
+                                    Result.Left.Y + leftEyeCenterInSub.Y
+                                );
+                                Point rightEyeCenterInSub = new Point(
+                                    rightCenter.X - p_eyes[1].X,
+                                    rightCenter.Y - p_eyes[1].Y
+                                );
+                                Point rightPointInSub = new Point(
+                                    Result.Right.X + rightEyeCenterInSub.X,
+                                    Result.Right.Y + rightEyeCenterInSub.Y
+                                );
+
+                                // 在左眼Mat上绘制点
+                                Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
+
+                                // 在右眼Mat上绘制点
+                                Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 1, Scalar.Green, -1);
+                                Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
+
+                                // 调试显示Candidate
+                                Debug(DebugHint.Subtraction, leftEyeMat);  // 显示左眼区域
+                                Debug(DebugHint.Output, rightEyeMat);      // 显示右眼区域及绿点
+                                Debug(DebugHint.Bin_Subtraction, thisMat);
+                            }
                         }
                     }
                 }
                 else
                 {
                     Stats.NoCheckLightCount++;
+                    last_this_center[0] = last_this_center[1];
+                    LastMat.Dispose();
+                    LastMat = thisMat;
+                    result = Result;
+                    return;
                 }
             }
-            
+
             Trace((KeyedEyeDetectTrace.TraceKey)0, "总共处理" + Stats.TotalFrames.ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)99, "成功" + Stats.SuccessFrames.ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)1, "眼睛异常" + (Stats.NoEyesDetectedCount).ToString());
@@ -183,19 +222,19 @@ private static readonly string XmlPath =
             Trace((KeyedEyeDetectTrace.TraceKey)2, "明暗异常" + (Stats.NoCheckLightCount).ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)3, "瞳孔异常" + (Stats.NoPuilpDetectedCount).ToString());
             Trace((KeyedEyeDetectTrace.TraceKey)4, "亮斑异常" + (Stats.NoReflectionDetectedCount).ToString());
-            LastMat.Dispose();
         }
         else
         {
-            if(!DetectEyes(thisMat, last_this_center, 0))
+            if(DetectEyes(thisMat, last_this_center, 0))
             {
+                LastMat = thisMat;
                 result = Result;
                 return;
             }
         }
-
+        if (LastMat is not null) LastMat.Dispose();
+        LastMat = null;
         result = Result;
-        LastMat = thisMat;
     }
 
     //
@@ -412,7 +451,7 @@ private static readonly string XmlPath =
             var newSize = new Size(size, size);
             var topLeft = new Point(center.X - newSize.Width / 2, center.Y - newSize.Height / 2);
 
-            middleEye[i] = p_eyes[0];//new Rect(topLeft, newSize);
+            middleEye[i] = new Rect(topLeft, newSize);  //眼睛亮度p_eyes[0]
             return true;
         }
 
@@ -478,7 +517,7 @@ private static readonly string XmlPath =
         // 预计算网格和梯度，避免重复计算
         using var grid = CreateGrid(image.Rows, image.Cols);
         using var gradient = CreateGradient(floatImage);
-        
+
         // 使用单个数组存储分数，避免Mat操作的开销
         float[,] scores = new float[image.Rows, image.Cols];
         object lockObj = new object();
@@ -488,12 +527,12 @@ private static readonly string XmlPath =
         // 优化并行计算
         int threadCount = Environment.ProcessorCount;
         int rowsPerThread = (endY - startY) / threadCount;
-        
+
         Parallel.For(0, threadCount, threadIndex =>
         {
             int localStartY = startY + threadIndex * rowsPerThread;
             int localEndY = threadIndex == threadCount - 1 ? endY : localStartY + rowsPerThread;
-            
+
             float localMaxScore = float.MinValue;
             Point localMaxLoc = new Point(0, 0);
 
@@ -553,7 +592,7 @@ private static readonly string XmlPath =
         // 使用 using 语句确保资源释放
         using var leftEye = new Mat(darkImage, p_eyes[0]);
         Point leftPupil = Locate(leftEye);
-        
+
         using var rightEye = new Mat(darkImage, p_eyes[1]);
         Point rightPupil = Locate(rightEye);
 
@@ -575,7 +614,7 @@ private static readonly string XmlPath =
         return true;
     }
 
-    // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
+    //对眼睛区域进行处理（最大值滤波 + 中值滤波）
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
         maxFilterSize = maxFilterSize % 2 == 0 ? maxFilterSize + 1 : maxFilterSize;
