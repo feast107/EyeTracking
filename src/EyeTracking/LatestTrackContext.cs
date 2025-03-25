@@ -521,8 +521,8 @@ private static readonly string XmlPath =
         Cv2.Normalize(floatImage, floatImage, 0, 1, NormTypes.MinMax);
 
         // 高斯模糊
-    var blurred = new Mat();
-    Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), 2);// 修复 Size 参数
+        var blurred = new Mat();
+        Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), 2);// 修复 Size 参数
 
         // 边界设置
         int border = 5;
@@ -535,19 +535,13 @@ private static readonly string XmlPath =
         using var grid = CreateGrid(image.Rows, image.Cols);
         using var gradient = CreateGradient(floatImage);
 
-        // 优化并行计算
-        int threadCount = Environment.ProcessorCount;
-        int rowsPerThread = (endY - startY) / threadCount;
+        // 计算分数
+        // 计算分数
+        var scores = new Mat(image.Size(), MatType.CV_32F, new Scalar(0)); // 修复 Scalar.Zero
 
-        Parallel.For(0, threadCount, threadIndex =>
+        for (int cy = startY; cy < endY; cy++)
         {
-            int localStartY = startY + threadIndex * rowsPerThread;
-            int localEndY = threadIndex == threadCount - 1 ? endY : localStartY + rowsPerThread;
-
-            float localMaxScore = float.MinValue;
-            Point localMaxLoc = new Point(0, 0);
-
-            for (int cy = localStartY; cy < localEndY; cy += accuracy)
+            for (int cx = startX; cx < endX; cx++)
             {
                 float score = 0;
                 float blurVal = blurred.At<float>(cy, cx);
@@ -558,9 +552,9 @@ private static readonly string XmlPath =
                 int startWx = Math.Max(0, cx - windowSize);
                 int endWx = Math.Min(image.Cols, cx + windowSize);
 
-                for (int y = startWy; y < endWy; y+=2)
+                for (int y = startWy; y < endWy; y += 2)
                 {
-                    for (int x = startWx; x < endWx; x+=2)
+                    for (int x = startWx; x < endWx; x += 2)
                     {
                         var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
                         var grad = gradient.At<Vec2f>(y, x);
