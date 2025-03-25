@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-		<TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <LangVersion>preview</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -30,6 +30,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\EyeTracking.Windows.CLR.Detect\EyeTracking.Windows.CLR.Detect.vcxproj" />
+        <ProjectReference Include="..\EyeTracking.Windows.CLR.Detect\EyeTracking.Windows.CLR.Detect.vcxproj"/>
     </ItemGroup>
 </Project>

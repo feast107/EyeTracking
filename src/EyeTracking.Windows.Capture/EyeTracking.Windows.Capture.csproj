@@ -7,7 +7,7 @@
         <UseWindowsForms>true</UseWindowsForms>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
-    
+
     <ItemGroup>
         <Content Include="..\x64\Debug\*.dll" LinkBase="runtimes\win-x64\native\">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -16,11 +16,11 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
-    
+
     <ItemGroup>
-      <Reference Include="CyUSB.NET">
-        <HintPath>lib\CyUSB.NET.dll</HintPath>
-      </Reference>
+        <Reference Include="CyUSB.NET">
+            <HintPath>lib\CyUSB.NET.dll</HintPath>
+        </Reference>
     </ItemGroup>
-    
+
 </Project>
