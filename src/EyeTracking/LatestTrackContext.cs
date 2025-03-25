@@ -48,6 +48,7 @@ public class DetectionStatistics
 }
 public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 {
+
     private bool? isLastLight;
 
     private Rect[] p_eyes = new Rect[2];
@@ -106,26 +107,39 @@ private static readonly string XmlPath =
             throw new FileLoadException("Error: Unable to load eye cascade classifier!");
         }
     }
-    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
-    {
-        Debug(DebugHint.Origin, thisMat);          // 原始图像
-        if (LastMat is not null)
-        {
-            Stats.TotalFrames++;//开始总帧计数
+    private double CalculateDynamicThreshold(Mat image, Rect rect)
+{
+    using var roi = new Mat(image, rect);
+    var mean = Cv2.Mean(roi);
+    var stdDev = new Scalar();
+    Cv2.MeanStdDev(roi, out _, out stdDev);
+    
+    // 根据均值和标准差计算动态阈值
+    return mean[0] * rect.Width * rect.Height * 0.15 + stdDev[0] * rect.Width * rect.Height * 0.1;
+}
 
-            if (DetectEyes(thisMat, last_this_center, 1))
+    public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
+{
+    Debug(DebugHint.Origin, thisMat);
+    if (LastMat is not null)
+    {
+        Stats.TotalFrames++;
+
+        if (DetectEyes(thisMat, last_this_center, 1))
+        {
+            var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
+            var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
+            last_this_center[0] = last_this_center[1];
+
+            // 使用动态阈值
+            double dynamicThreshold = CalculateDynamicThreshold(thisMat, last_this_center[1]);
+            double brightnessDiff = Math.Abs(s[0] - n[0]);
+
+            if (brightnessDiff > dynamicThreshold)
             {
-                //识别两个眼睛中间区域亮度，当thismat大于lastmat一定值时，这张为亮，否则小于一定值时，这张为暗，否则缓存这张继续检测
-                var s = GetBrightnessOfRectUsingSum(LastMat, last_this_center[0]);
-                var n = GetBrightnessOfRectUsingSum(thisMat, last_this_center[1]);
-                //last_this_center[0] = last_this_center[1];
-                double yuzhi = 200000; //XXX:999需要测试 173308
-                double debug_num = s[0] - n[0];
-                if (s[0] - n[0] > yuzhi || n[0] - s[0] > yuzhi)
-                {
-                    isLastLight = s[0] > n[0];
-                    var light = s[0] > n[0] ? LastMat : thisMat;
-                    var dark = s[0] > n[0] ? thisMat : LastMat;
+                isLastLight = s[0] > n[0];
+                var light = isLastLight.Value ? LastMat : thisMat;
+                var dark = isLastLight.Value ? thisMat : LastMat;
                     if (DetectPupil(light, dark))
                     {
                         if (DetectReflection(light))
@@ -462,7 +476,7 @@ private static readonly string XmlPath =
     private Mat CreateGrid(int rows, int cols)
     {
         var grid = new Mat(2 * rows - 1, 2 * cols - 1, MatType.CV_32FC2);
-
+    
         for (int y = 1 - rows; y < rows; y++)
         {
             for (int x = 1 - cols; x < cols; x++)
@@ -479,13 +493,12 @@ private static readonly string XmlPath =
 
     private Mat CreateGradient(Mat image)
     {
-        Mat gradX = new Mat();
-        Mat gradY = new Mat();
-        
+        var gradX = new Mat();
+        var gradY = new Mat();
         Cv2.Sobel(image, gradX, MatType.CV_32F, 1, 0);
         Cv2.Sobel(image, gradY, MatType.CV_32F, 0, 1);
 
-        Mat gradient = new Mat(image.Size(), MatType.CV_32FC2);
+        var gradient = new Mat(image.Size(), MatType.CV_32FC2);
         for (int y = 0; y < image.Rows; y++)
         {
             for (int x = 0; x < image.Cols; x++)
@@ -500,30 +513,27 @@ private static readonly string XmlPath =
         return gradient;
     }
 
-    public Point Locate(Mat image, double sigma = 2, int accuracy = 1)
+    private Point Locate(Mat image)
     {
-        using var floatImage = new Mat();
+        // 转换为浮点图像并归一化
+        var floatImage = new Mat();
         image.ConvertTo(floatImage, MatType.CV_32F);
         Cv2.Normalize(floatImage, floatImage, 0, 1, NormTypes.MinMax);
 
-        using var blurred = new Mat();
-        Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), sigma, sigma);
+        // 高斯模糊
+    var blurred = new Mat();
+    Cv2.GaussianBlur(floatImage, blurred, new Size(0, 0), 2);// 修复 Size 参数
 
+        // 边界设置
         int border = 5;
         int startY = border;
         int endY = image.Rows - border;
         int startX = border;
         int endX = image.Cols - border;
 
-        // 预计算网格和梯度，避免重复计算
+        // 创建网格和梯度
         using var grid = CreateGrid(image.Rows, image.Cols);
-        using var gradient = CreateGradient(blurred);
-        
-        // 使用单个数组存储分数，避免Mat操作的开销
-        float[,] scores = new float[image.Rows, image.Cols];
-        object lockObj = new object();
-        Point maxLoc = new Point(0, 0);
-        float maxScore = float.MinValue;
+        using var gradient = CreateGradient(floatImage);
 
         // 优化并行计算
         int threadCount = Environment.ProcessorCount;
@@ -539,55 +549,32 @@ private static readonly string XmlPath =
 
             for (int cy = localStartY; cy < localEndY; cy += accuracy)
             {
-                for (int cx = startX; cx < endX; cx += accuracy)
+                float score = 0;
+                float blurVal = blurred.At<float>(cy, cx);
+
+                int windowSize = 10;
+                int startWy = Math.Max(0, cy - windowSize);
+                int endWy = Math.Min(image.Rows, cy + windowSize);
+                int startWx = Math.Max(0, cx - windowSize);
+                int endWx = Math.Min(image.Cols, cx + windowSize);
+
+                for (int y = startWy; y < endWy; y+=2)
                 {
-                    float score = 0;
-                    float blurVal = blurred.At<float>(cy, cx);
-
-                    // 优化窗口大小计算
-                    int windowSize = 10; // 减小窗口大小以提高性能
-                    int startWy = Math.Max(0, cy - windowSize);
-                    int endWy = Math.Min(image.Rows, cy + windowSize);
-                    int startWx = Math.Max(0, cx - windowSize);
-                    int endWx = Math.Min(image.Cols, cx + windowSize);
-
-                    // 使用向量化计算
-                    for (int y = startWy; y < endWy; y++)
+                    for (int x = startWx; x < endWx; x+=2)
                     {
-                        for (int x = startWx; x < endWx; x++)
-                        {
-                            var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
-                            var grad = gradient.At<Vec2f>(y, x);
-                            float dot = disp.Item0 * grad.Item0 + disp.Item1 * grad.Item1;
-                            score += dot * dot;  
-                        }
-                    }
-
-                    score *= (1 - blurVal);
-                    scores[cy, cx] = score;
-
-                    if (score > localMaxScore)
-                    {
-                        localMaxScore = score;
-                        localMaxLoc = new Point(cx, cy);
+                        var disp = grid.At<Vec2f>(image.Rows - cy - 1 + y, image.Cols - cx - 1 + x);
+                        var grad = gradient.At<Vec2f>(y, x);
+                        float dot = disp.Item0 * grad.Item0 + disp.Item1 * grad.Item1;
+                        score += dot * dot;
                     }
                 }
+                scores.Set(cy, cx, score * (1 - blurVal));
             }
+        }
 
-            // 合并局部最大值
-            lock (lockObj)
-            {
-                if (localMaxScore > maxScore)
-                {
-                    maxScore = localMaxScore;
-                    maxLoc = localMaxLoc;
-                }
-            }
-        });
-
+        Cv2.MinMaxLoc(scores, out _, out _, out _, out Point maxLoc);
         return maxLoc;
     }
-
     private bool DetectPupil(Mat lightImage, Mat darkImage)
     {
         // 使用 using 语句确保资源释放
@@ -612,10 +599,66 @@ private static readonly string XmlPath =
             p_eyes[1].X + rightPupil.X,
             p_eyes[1].Y + rightPupil.Y);
 
+        // 添加保存图像的代码
+
         return true;
     }
+private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye, Mat leftEyeOriginal, Mat rightEyeOriginal, long frameNumber)
+{
+    if (!Parameters.EnableImageSave) return;
 
-    //对眼睛区域进行处理（最大值滤波 + 中值滤波）
+    try
+    {
+        // 创建保存目录
+        string leftEyeDir = Path.Combine(Parameters.ImageSavePath, "LeftEye");
+        string rightEyeDir = Path.Combine(Parameters.ImageSavePath, "RightEye");
+
+        // 确保目录存在
+        Directory.CreateDirectory(leftEyeDir);
+        Directory.CreateDirectory(rightEyeDir);
+        // 获取坐标信息
+        var leftPupilCenter = Result.LeftEyeCenter ?? new Point(0, 0);
+        var rightPupilCenter = Result.RightEyeCenter ?? new Point(0, 0);
+        var leftReflection = Result.Left;
+        var rightReflection = Result.Right;
+        // 生成包含坐标信息的文件名
+        string leftCoordInfo = $"_P{leftPupilCenter.X:F0}_{leftPupilCenter.Y:F0}_R{leftReflection.X:F0}_{leftReflection.Y:F0}";
+        string rightCoordInfo = $"_P{rightPupilCenter.X:F0}_{rightPupilCenter.Y:F0}_R{rightReflection.X:F0}_{rightReflection.Y:F0}";
+        
+        string timestamp = Parameters.SaveWithTimestamp ? 
+            $"_{DateTime.Now:yyyyMMdd_HHmmss}" : "";
+        
+        // 修改文件名，加入坐标信息
+        string leftOriginalFileName = Path.Combine(leftEyeDir, 
+            $"left_eye_{frameNumber}{leftCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
+        string leftRenderedFileName = Path.Combine(leftEyeDir, 
+            $"left_eye_{frameNumber}{leftCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
+        string rightOriginalFileName = Path.Combine(rightEyeDir, 
+            $"right_eye_{frameNumber}{rightCoordInfo}_original{timestamp}.{Parameters.ImageFormat}");
+        string rightRenderedFileName = Path.Combine(rightEyeDir, 
+            $"right_eye_{frameNumber}{rightCoordInfo}_rendered{timestamp}.{Parameters.ImageFormat}");
+
+
+        // 保存图像
+        var imwriteParams = new int[]
+        {
+            (int)(Parameters.ImageFormat.ToLower() == "png" ? 
+                ImwriteFlags.PngCompression : ImwriteFlags.JpegQuality),
+            90  // 压缩质量
+        };
+
+        // 保存原始图像和渲染后的图像
+        leftEyeOriginal.ImWrite(leftOriginalFileName, imwriteParams);
+        leftEye.ImWrite(leftRenderedFileName, imwriteParams);
+        rightEyeOriginal.ImWrite(rightOriginalFileName, imwriteParams);
+        rightEye.ImWrite(rightRenderedFileName, imwriteParams);
+    }
+    catch (Exception)
+    {
+        // 暂时忽略保存失败的错误
+    }
+}
+    // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
         maxFilterSize = maxFilterSize % 2 == 0 ? maxFilterSize + 1 : maxFilterSize;
