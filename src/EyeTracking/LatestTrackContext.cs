@@ -107,7 +107,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         Cv2.MeanStdDev(roi, out _, out var stdDev);
 
         // 根据均值和标准差计算动态阈值
-        return mean[0] * rect.Width * rect.Height * 0.15 + stdDev[0] * rect.Width * rect.Height * 0.1;
+        return mean[0] * rect.Width * rect.Height * 0.12 + stdDev[0] * rect.Width * rect.Height * 0.15;
     }
 
     public override void DetectSight(Mat thisMat, out EyeDetectResult? result)
@@ -782,7 +782,7 @@ public class EyeTrack : EyeTrackContext<Point>
     {
         throw new NotImplementedException();
     }
-} // EyeTrack class end
+}
 } // namespace EyeTracking end
 
 

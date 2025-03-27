@@ -332,12 +332,12 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 var cost = Stopwatch.StartNew();
                 Marshal.Copy(ptr, arr, 0, (int)length);
                 var mat = Mat.FromPixelData(capture.Height, capture.Width, MatType.CV_8UC1, arr);
-                CopyCost = cost.ElapsedMilliseconds;
+                //CopyCost = cost.ElapsedMilliseconds;
                 if (EnableSave) mat.SaveImage((FilePath)SavePath / DateTimeOffset.Now.Ticks.ToString() + ".png");
                 if (EnableDetect) Detect(mat);
                 else
                 {
-                    Origin = mat.ToWriteableBitmap();
+                    //Origin = mat.ToWriteableBitmap();
                 }
             });
         }
