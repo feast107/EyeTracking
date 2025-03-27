@@ -13,7 +13,9 @@ using CommunityToolkit.Mvvm.Input;
 using EyeTracking.Desktop.Extensions;
 using EyeTracking.Desktop.Views.Windows;
 using EyeTracking.Extensions;
+using EyeTracking.Utils;
 using EyeTracking.Windows.Capture;
+using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
 using Window = Avalonia.Controls.Window;
@@ -26,12 +28,16 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     public EyeTrackViewModel(Window window)
     {
         this.window = window;
+        var interval = 1000 ;
         Task.Run(() =>
         {
             while (true)
             {
                 PInvoke.GetCursorPos(out var point);
                 MousePos = point;
+                if (interval-- > 0) continue;
+                interval = 1000;
+                OnPropertyChanged(nameof(Fps));
             }
         });
     }
@@ -68,7 +74,8 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         }
     }
 
-
+    private readonly DoubleBuffer doubleBuffer = new();
+    
     private readonly UsbKCapture capture = new();
 
 
@@ -97,7 +104,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] public partial bool                 Capturing            { get; set; }
     [ObservableProperty] public partial bool                 Saving               { get; set; }
-    [ObservableProperty] public partial int                  Fps                  { get; set; }
+    public                              int                  Fps                  => doubleBuffer.InputFps;
     [ObservableProperty] public partial long                 CopyCost             { get; set; }
     [ObservableProperty] public partial System.Drawing.Point MousePos             { get; set; }
     [ObservableProperty] public partial Point                LeftEyeVector        { get; set; }
@@ -320,26 +327,16 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         unsafe
         {
             Capturing = true;
-            var watch    = Stopwatch.StartNew();
-            var lastTick = watch.ElapsedMilliseconds;
-            capture.Start((buffer, length) =>
+            doubleBuffer.Consume(arr =>
             {
-                var cur = watch.ElapsedMilliseconds;
-                Fps      = (int)(1000 / (cur - lastTick));
-                lastTick = cur;
-                var arr  = new byte[length];
-                var ptr  = new IntPtr(buffer);
-                var cost = Stopwatch.StartNew();
-                Marshal.Copy(ptr, arr, 0, (int)length);
                 var mat = Mat.FromPixelData(capture.Height, capture.Width, MatType.CV_8UC1, arr);
                 //CopyCost = cost.ElapsedMilliseconds;
                 if (EnableSave) mat.SaveImage((FilePath)SavePath / DateTimeOffset.Now.Ticks.ToString() + ".png");
                 if (EnableDetect) Detect(mat);
-                else
-                {
-                    //Origin = mat.ToWriteableBitmap();
-                }
+                //Origin = mat.ToWriteableBitmap();
             });
+            var handler = doubleBuffer.CreateHandler();
+            capture.Start((buffer, length) => handler(buffer, length));
         }
     }
 
