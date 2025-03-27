@@ -38,6 +38,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 if (interval-- > 0) continue;
                 interval = 1000;
                 OnPropertyChanged(nameof(Fps));
+                OnPropertyChanged(nameof(AlgFps));
             }
         });
     }
@@ -105,7 +106,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool                 Capturing            { get; set; }
     [ObservableProperty] public partial bool                 Saving               { get; set; }
     public                              int                  Fps                  => doubleBuffer.InputFps;
-    [ObservableProperty] public partial long                 CopyCost             { get; set; }
+    public                              int                  AlgFps               => doubleBuffer.OutputFps;
     [ObservableProperty] public partial System.Drawing.Point MousePos             { get; set; }
     [ObservableProperty] public partial Point                LeftEyeVector        { get; set; }
     [ObservableProperty] public partial Point                RightEyeVector       { get; set; }
@@ -327,7 +328,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         unsafe
         {
             Capturing = true;
-            doubleBuffer.Consume(arr =>
+            doubleBuffer.Output(arr =>
             {
                 var mat = Mat.FromPixelData(capture.Height, capture.Width, MatType.CV_8UC1, arr);
                 //CopyCost = cost.ElapsedMilliseconds;
@@ -335,8 +336,8 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 if (EnableDetect) Detect(mat);
                 //Origin = mat.ToWriteableBitmap();
             });
-            var handler = doubleBuffer.CreateHandler();
-            capture.Start((buffer, length) => handler(buffer, length));
+            var input = doubleBuffer.CreateInput();
+            capture.Start((buffer, length) => input(buffer, length));
         }
     }
 

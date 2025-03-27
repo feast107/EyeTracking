@@ -15,7 +15,7 @@ public class DoubleBuffer
     private          (byte[], byte[])?        current;
     private          CancellationTokenSource? cancel;
     
-    public unsafe DataHandler CreateHandler()
+    public unsafe DataHandler CreateInput()
     {
         var watch = Stopwatch.StartNew();
         var last  = watch.ElapsedMilliseconds;
@@ -40,7 +40,7 @@ public class DoubleBuffer
         };
     }
     
-    public void Consume(Action<byte[]> action)
+    public void Output(Action<byte[]> action)
     {
         cancel?.Cancel();
         var tmp = cancel = new();

@@ -20,12 +20,12 @@
                     </Style>
                 </StackPanel.Styles>
                 <StackPanel>
-                    <TextBlock Text="帧率:" />
+                    <TextBlock Text="捕获帧率:" />
                     <TextBlock Text="{Binding Fps}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="拷贝耗时:" />
-                    <TextBlock Text="{Binding CopyCost}" />
+                    <TextBlock Text="算法帧率:" />
+                    <TextBlock Text="{Binding AlgFps}" />
                 </StackPanel>
                 
             </StackPanel>
