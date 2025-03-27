@@ -673,107 +673,107 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
         return result;
     }
+// 定义亮斑结构
+public struct BrightSpot
+{
+    public Point Center;
+    public double Area;
+    public double DistanceToPupil;
+
+    public BrightSpot(Point center, double area, double distanceToPupil = 0)
+    {
+        Center = center;
+        Area = area;
+        DistanceToPupil = distanceToPupil;
+    }
+}
 
     // 提取亮斑中心坐标
-    private bool ExtractBrightSpotCenter(Mat result, Rect eyeRect, Mat original, out Point? output)
+    private bool ExtractBrightSpotCenter(Mat result, Rect eyeRect, Point pupilCenter, out Point? output)
+{
+    output = null;
+    using var binary = new Mat();
+    Cv2.Threshold(result, binary, 50, 255, ThresholdTypes.Binary);
+
+    Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External,
+        ContourApproximationModes.ApproxSimple);
+
+    if (contours.Length == 0)
     {
-        // 阈值分割提取亮斑区域
-        Mat binary = new();
-        Cv2.Threshold(result, binary, 50, 255, ThresholdTypes.Binary); // 调整阈值以适应亮斑
+        Stats.NoReflectionDetectedCount++;
+        return false;
+    }
 
-        // 查找轮廓
-        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External,
-            ContourApproximationModes.ApproxSimple);
-
-        if (contours.Length == 0)
-        {
-            Stats.NoReflectionDetectedCount++;
-            output = null;
-            return false;
-        }
-
-        // 假设最大的轮廓是亮斑
-        var largestContour = contours.OrderByDescending(x => Cv2.ContourArea(x)).First();
-
-        // 计算质心
-        var m = Cv2.Moments(largestContour);
-        if (m.M00 == 0)
-        {
-            output = null;
-            return false;
-        }
+    var brightSpots = new List<BrightSpot>();
+    foreach (var contour in contours)
+    {
+        var m = Cv2.Moments(contour);
+        if (m.M00 == 0) continue;
 
         var cx = m.M10 / m.M00;
         var cy = m.M01 / m.M00;
+        var absoluteCenter = new Point(eyeRect.X + cx, eyeRect.Y + cy);
+        
+        // 计算与瞳孔中心的距离
+        var distance = Math.Sqrt(
+            Math.Pow(absoluteCenter.X - pupilCenter.X, 2) + 
+            Math.Pow(absoluteCenter.Y - pupilCenter.Y, 2));
 
-        // 将亮斑中心绘制在原图上
-        //Cv2.Circle(original, new Point(eyeRect.X + cx, eyeRect.Y + cy), 3, new Scalar(0, 0, 255), -1); // 红色圆点
-        //this._leftLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
-        //this._rightLightPos = new Point(eyeRect.X + cx, eyeRect.Y + cy);
-        output = new Point(eyeRect.X + cx, eyeRect.Y + cy);
-        return true;
-
-
-        //// 写入文件
-        //var filePath = "output.txt";                                 // 输出文件路径
-        //using (var outFile = new StreamWriter(filePath, true)) // 使用追加模式写入文件
-        //{
-        //    // 设置小数点后3位
-        //    outFile.WriteLine($"Highlight Center: ({(eyeRect.X + cx):F3}, {(eyeRect.Y + cy):F3})");
-        //}
+        brightSpots.Add(new BrightSpot(absoluteCenter, Cv2.ContourArea(contour), distance));
     }
+
+    if (brightSpots.Count == 0) return false;
+
+    // 选择距离瞳孔中心最近的亮斑
+    var closestSpot = brightSpots.OrderBy(spot => spot.DistanceToPupil).First();
+    output = closestSpot.Center;
+    return true;
+}
 
 
     // 反射点检测功能实现
     private bool DetectReflection(Mat light_image)
+{
+    if (p_eyes.Length != 2)
+        return false;
+    p_eyes = p_eyes.OrderBy(x => x.X).ToArray();
+
+    using var leftEye = light_image.SubMat(p_eyes[0]);
+    using var rightEye = light_image.SubMat(p_eyes[1]);
+    using var resultLeft = ProcessEyeArea(leftEye, 3, 3);
+    using var resultRight = ProcessEyeArea(rightEye, 3, 3);
+
+    var leftCenter = Result.LeftEyeCenter;
+    if (leftCenter != null && ExtractBrightSpotCenter(resultLeft, p_eyes[0], leftCenter.Value, out var left))
     {
-        if (p_eyes.Length != 2)
-            return false;
-        p_eyes = p_eyes.OrderBy(x => x.X).ToArray();
-
-        // 提取左眼和右眼区域
-        var leftEye  = light_image.SubMat(p_eyes[0]);
-        var rightEye = light_image.SubMat(p_eyes[1]);
-
-        // 处理眼睛区域
-        var resultLeft  = ProcessEyeArea(leftEye, 5, 3);
-        var resultRight = ProcessEyeArea(rightEye, 5, 3);
-
-        // 提取左眼和右眼的亮斑中心并绘制
-        var leftCenter = Result.LeftEyeCenter;
-        if (ExtractBrightSpotCenter(resultLeft, p_eyes[0], light_image, out var left)
-            && leftCenter != null)
-        {
-            var cur = new Point(
-                left!.Value.X - leftCenter.Value.X,
-                left.Value.Y  - leftCenter.Value.Y);
-            if (!(cur.X is 0 && cur.Y is 0))
-                Result.Left = cur;
-        }
-        else
-        {
-            Stats.NoReflectionDetectedCount++;
-            return false;
-        }
-
-        var rightCenter = Result.RightEyeCenter;
-        if (ExtractBrightSpotCenter(resultRight, p_eyes[1], light_image, out var right)
-            && rightCenter != null)
-        {
-            var cur = new Point(
-                right!.Value.X - rightCenter.Value.X,
-                right.Value.Y  - rightCenter.Value.Y);
-            if (!(cur.X is 0 && cur.Y is 0))
-                Result.Right = cur;
-        }
-        else
-        {
-            Stats.NoReflectionDetectedCount++;
-            return false;
-        }
-
-        return true;
+        var cur = new Point(
+            left!.Value.X - leftCenter.Value.X,
+            left.Value.Y - leftCenter.Value.Y);
+        if (!(cur.X is 0 && cur.Y is 0))
+            Result.Left = cur;
     }
+    else
+    {
+        Stats.NoReflectionDetectedCount++;
+        return false;
+    }
+
+    var rightCenter = Result.RightEyeCenter;
+    if (rightCenter != null && ExtractBrightSpotCenter(resultRight, p_eyes[1], rightCenter.Value, out var right))
+    {
+        var cur = new Point(
+            right!.Value.X - rightCenter.Value.X,
+            right.Value.Y - rightCenter.Value.Y);
+        if (!(cur.X is 0 && cur.Y is 0))
+            Result.Right = cur;
+    }
+    else
+    {
+        Stats.NoReflectionDetectedCount++;
+        return false;
+    }
+
+    return true;
 }
 
 public class EyeTrack : EyeTrackContext<Point>
@@ -782,7 +782,8 @@ public class EyeTrack : EyeTrackContext<Point>
     {
         throw new NotImplementedException();
     }
-}
+} // EyeTrack class end
+} // namespace EyeTracking end
 
 
 //public class Demo {
