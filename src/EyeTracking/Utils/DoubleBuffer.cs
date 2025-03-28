@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace EyeTracking.Utils;
 
-public class DoubleBuffer
+public class DoubleBuffer : IDisposable
 {
     public unsafe delegate void DataHandler(byte* buffer, long length);
 
@@ -72,5 +72,11 @@ public class DoubleBuffer
             OutputFps = (int)(1000 / (now - last));
             last      = now;
         }
+    }
+
+    public void Dispose()
+    {
+        cancel?.Cancel();
+        cancel?.Dispose();
     }
 }

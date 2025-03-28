@@ -357,5 +357,6 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         Decoder = null;
         Enumerator?.Dispose();
         Enumerator = null;
+        doubleBuffer.Dispose();
     }
 }
