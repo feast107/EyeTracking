@@ -19,6 +19,7 @@ using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenCvSharp;
 using Window = Avalonia.Controls.Window;
+using MathNet.Numerics.Statistics;
 
 namespace EyeTracking.Desktop.ViewModels;
 
@@ -115,6 +116,10 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool                 EnableSave           { get; set; }
     [ObservableProperty] public partial GazeCalibration?     LeftGazeCalibration  { get; set; }
     [ObservableProperty] public partial GazeCalibration?     RightGazeCalibration { get; set; }
+    [ObservableProperty] public partial double Verify_lx { get; set; }
+    [ObservableProperty] public partial double Verify_ly { get; set; }
+    [ObservableProperty] public partial double Verify_rx { get; set; }
+    [ObservableProperty] public partial double Verify_ry { get; set; }
 
     [field: AllowNull, MaybeNull] public ObservableCollection<ClickCircleViewModel> ClickCircles => field ??= [];
 
@@ -145,14 +150,78 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         ClickCircles.Clear();
     }
     
+    //public void RecordTrack(double dxSamples, double dySamples, double r_dxSamples, double r_dySamples)
+    //{
+    //    ClickCircles.Add(new()
+    //    {
+    //        //LeftEyeVector  = new(LeftEyeVector.X, LeftEyeVector.Y),
+    //        //RightEyeVector = new(RightEyeVector.X, RightEyeVector.Y),
+    //        LeftEyeVector  = new(dxSamples, dySamples),
+    //        RightEyeVector = new(r_dxSamples, r_dySamples),
+    //        ScreenPoint = new(MousePos.X, MousePos.Y),
+    //    });
+    //}
     public void RecordTrack()
     {
-        ClickCircles.Add(new()
+        //多次检测
+        List<double> dxSamples = new List<double>();
+        List<double> dySamples = new List<double>();
+        List<double> r_dxSamples = new List<double>();
+        List<double> r_dySamples = new List<double>();
+        const int maxSamples = 10;
+        const double varianceThreshold = 1e-4;
+        double lastVector = 0;
+
+        while (dxSamples.Count < maxSamples)
         {
-            LeftEyeVector  = new(LeftEyeVector.X, LeftEyeVector.Y),
-            RightEyeVector = new(RightEyeVector.X, RightEyeVector.Y),
-            ScreenPoint    = new(MousePos.X, MousePos.Y),
-        });
+            if (lastVector == LeftEyeVector.X) continue;
+            lastVector = LeftEyeVector.X;
+            dxSamples.Add(LeftEyeVector.X);
+            dySamples.Add(LeftEyeVector.Y);
+            r_dxSamples.Add(RightEyeVector.X);
+            r_dySamples.Add(RightEyeVector.Y);
+
+            //计算方差判断稳定性
+            if (dxSamples.Count > 7)
+            {
+                var variance = CalculateVariance(dxSamples);
+                var r_variance = CalculateVariance(r_dxSamples);
+                if (variance < varianceThreshold && r_variance < varianceThreshold) break;
+            }
+        }
+        // 使用中位数抗噪
+        //Verify_lx = Median(FilterSamples(dxSamples));
+        //Verify_ly = Median(FilterSamples(dySamples));
+        //Verify_rx = Median(FilterSamples(r_dxSamples));
+        //Verify_ry = Median(FilterSamples(r_dySamples));
+        Verify_lx = Median(dxSamples);
+        Verify_ly = Median(dySamples);
+        Verify_rx = Median(r_dxSamples);
+        Verify_ry = Median(r_dySamples);
+        //vm.RecordTrack(ccv.Verify_lx, ccv.Verify_ly, ccv.Verify_rx, ccv.Verify_ry);
+#if (true)
+        {
+            ClickCircles.Add(new()
+            {
+                LeftEyeVector = new(Verify_lx, Verify_ly),
+                RightEyeVector = new(Verify_rx, Verify_ry),
+                //LeftEyeVector = new(Verify_lx, Verify_ly),
+                //RightEyeVector = new(Verify_rx, Verify_ry),
+                ScreenPoint = new(MousePos.X, MousePos.Y),
+            });
+        }
+#else
+        {
+            ClickCircles.Add(new()
+            {
+                LeftEyeVector = new(LeftEyeVector.X, LeftEyeVector.Y),
+                RightEyeVector = new(RightEyeVector.X, RightEyeVector.Y),
+                //LeftEyeVector = new(Verify_lx, Verify_ly),
+                //RightEyeVector = new(Verify_rx, Verify_ry),
+                ScreenPoint = new(MousePos.X, MousePos.Y),
+            });
+        }
+#endif
     }
 
     [RelayCommand]
@@ -358,5 +427,55 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         Enumerator?.Dispose();
         Enumerator = null;
         doubleBuffer.Dispose();
+    }
+
+
+    // 计算方差（使用MathNet.Numerics）
+    private static double CalculateVariance(IEnumerable<double> samples)
+    {
+        return samples.Variance();
+    }
+
+    // 计算中位数（使用MathNet.Numerics）
+    private static double Median(IEnumerable<double> samples)
+    {
+        return samples.Median();
+    }
+
+    // 如果不希望依赖MathNet，手动实现：
+    private static double ManualMedian(List<double> samples)
+    {
+        var sorted = samples.OrderBy(x => x).ToList();
+        int n = sorted.Count;
+        return (n % 2 == 1) ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
+    }
+
+    private static double ManualVariance(List<double> samples)
+    {
+        double mean = samples.Average();
+        return samples.Sum(x => Math.Pow(x - mean, 2)) / samples.Count;
+    }
+    private List<double> FilterSamples(List<double> rawSamples)
+    {
+        // 滑动窗口中值滤波（窗口大小=5）
+        var medianFiltered = new List<double>();
+        for (int i = 0; i < rawSamples.Count; i++)
+        {
+            var window = rawSamples
+                .Skip(Math.Max(0, i - 2))
+                .Take(5)
+                .ToList();
+            window.Sort();
+            medianFiltered.Add(window[window.Count / 2]);
+        }
+
+        // 剔除异常值（基于中位数绝对偏差MAD）
+        double median = Median(medianFiltered);
+        double mad = Median(medianFiltered.Select(x => Math.Abs(x - median)));
+        double threshold = median + 3 * 1.4826 * mad; // 1.4826是高斯分布转换系数
+
+        return medianFiltered
+            .Where(x => Math.Abs(x - median) < threshold)
+            .ToList();
     }
 }

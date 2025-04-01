@@ -1,4 +1,5 @@
 using MathNet.Numerics.LinearAlgebra;
+using System.Drawing;
 using System.Linq;
 
 namespace EyeTracking
@@ -11,6 +12,12 @@ namespace EyeTracking
         private double _lastX = 0;
         private double _lastY = 0;
         private const double RegularizationLambda = 1e-6;
+
+        private EyeStabilizer stabilizer = new EyeStabilizer(
+            medianWindowSize: 3,   // 中值窗口大小
+            processNoise: 0.1f,    // 过程噪声（Q）
+            measurementNoise: 1f   // 测量噪声（R）
+        );
 
         public GazeCalibration(
             IEnumerable<(double deltaX, double deltaY, double screenX, double screenY)> calibrationData)
@@ -53,25 +60,53 @@ namespace EyeTracking
                     1                    // Intercept
                 }).ToArray());
         }
+        private static Matrix<double> BuildEnhancedDesignMatrix(IList<double> deltaX, IList<double> deltaY) //添加三次项拟合，增加头部姿态评估
+        {
+            return Matrix<double>.Build.DenseOfRowArrays(
+                deltaX.Select((x, i) => new[]
+                {
+            x,                   // Δx
+            deltaY[i],           // Δy
+            x * deltaY[i],       // ΔxΔy
+            x * x,               // Δx²
+            deltaY[i] * deltaY[i], // Δy²
+            x * x * deltaY[i],   // Δx²Δy
+            deltaX[i] * deltaY[i] * deltaY[i], // ΔxΔy²
+            x * x * x,           // Δx³
+            deltaY[i] * deltaY[i] * deltaY[i], // Δy³
+            1                    // Intercept
+                }).ToArray());
+        }
 
         public (double screenX, double screenY) CalculateGazePoint(double deltaX, double deltaY)
         {
             var features = new[] { deltaX, deltaY, deltaX * deltaY, deltaX * deltaX, deltaY * deltaY, 1 };
             if (_lastX == 0 && _lastY == 0)
             {
-                _lastX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1900 ? 1900 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
+                _lastX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1850 ? 1850 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
                 _lastY = _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum() > 1000 ? 1000 : _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum();
+                _lastX = _lastX < 70 ? 70 : _lastX;
+                _lastY = _lastY < 70 ? 70 : _lastY;
                 return (_lastX, _lastY);
             }
             else
             {
-                double _thisX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1900 ? 1900 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
+                double _thisX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1850 ? 1850 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
                 double _thisY = _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum() > 1000 ? 1000 : _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum();
-                double _stepX = _lastX + (_thisX - _lastX) / 10;
-                double _stepY = _lastY + (_thisY - _lastY) / 10;
+                _thisX = _thisX < 70 ? 70 : _thisX;
+                _thisY = _thisY < 70 ? 70 : _thisY;
+#if(false)
+                double _stepX = _lastX + (_thisX - _lastX) / 2;
+                double _stepY = _lastY + (_thisY - _lastY) / 2;
                 _lastX = _stepX;
                 _lastY = _stepY;
                 return (_stepX, _stepY);
+#else
+                PointF rawPoint = new PointF((float)_thisX, (float)_thisY);
+                var stabilizedPoint = stabilizer.Update(rawPoint);
+                // 使用平滑后的坐标...
+                return (stabilizedPoint.X, stabilizedPoint.Y);
+#endif
             }
         }
 

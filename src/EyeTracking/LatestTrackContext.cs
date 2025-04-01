@@ -158,8 +158,8 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                                 Cv2.Circle(lightEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
                                 Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
-                                SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
-                                    Stats.TotalFrames);
+                                //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
+                                //    Stats.TotalFrames);
 
                                 Debug(DebugHint.Subtraction, lightEyeMat);
                                 Debug(DebugHint.Output, darkEyeMat);

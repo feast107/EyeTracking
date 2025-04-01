@@ -13,9 +13,9 @@
         <Grid>
             <Grid>
                 <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="30" Width="30" />
-                    <Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="DimGray" Opacity="0.5" Height="60" Width="60" />
-                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.5" Height="60" Width="60" />
+                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="120" Width="120" />
+                    <Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="DimGray" Opacity="0.7" Height="120" Width="120" />
+                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.7" Height="120" Width="120" />
                 </Canvas>
             </Grid>
             <Grid>

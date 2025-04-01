@@ -5,6 +5,9 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Threading;
 using EyeTracking.Desktop.ViewModels;
 using Point = System.Drawing.Point;
+using Avalonia.Animation;
+using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace EyeTracking.Desktop.Views.Windows;
 
@@ -14,6 +17,9 @@ public partial class EyeTrackWindow : Window
     {
         InitializeComponent();
         DataContext = vm;
+        Canvas.SetLeft(LeftPosition, 960);
+        Canvas.SetTop(LeftPosition, 540);
+        bool play = false;
         Loaded += (_, _) =>
         {
             vm.ClickCircles.CollectionChanged += (o,e) =>
@@ -66,18 +72,70 @@ public partial class EyeTrackWindow : Window
                         });
                         break;
                     case nameof(EyeTrackViewModel.RightEyeVector):
-                        if (vm.LeftGazeCalibration is null || vm.RightGazeCalibration is null) return;
+                        if (vm.LeftGazeCalibration is null || vm.RightGazeCalibration is null || play)
+                        {
+                            return;
+                        }
+                        play = true;
                         var left = vm.LeftGazeCalibration.CalculateGazePoint(
                             vm.LeftEyeVector.X, vm.LeftEyeVector.Y);
                         var right = vm.RightGazeCalibration.CalculateGazePoint(
                             vm.RightEyeVector.X, vm.RightEyeVector.Y);
-                        Dispatcher.UIThread.InvokeAsync(() =>
+
+                        Dispatcher.UIThread.InvokeAsync(async () =>
                         {
-                            Canvas.SetLeft(LeftPosition, (left.screenX + right.screenX) / 2 - LeftPosition.Width   / 2);
-                            Canvas.SetTop(LeftPosition, (left.screenY + right.screenY) / 2 - LeftPosition.Height  / 2);
-                            //Canvas.SetLeft(RightPosition, right.screenX - RightPosition.Width  / 2);
-                            //Canvas.SetTop(RightPosition, right.screenY - RightPosition.Height / 2);
+                            // 计算目标位置
+                            var targetX = (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2;
+                            var targetY = (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2;
+
+                            // 获取当前位置
+                            var currentX = Canvas.GetLeft(LeftPosition);
+                            var currentY = Canvas.GetTop(LeftPosition);
+
+                            // 创建动画
+                            var animation = new Animation
+                            {
+                                Duration = TimeSpan.FromMilliseconds(30),
+                                FillMode = FillMode.Forward, // 保持动画结束状态
+                                Children =
+                                {
+                                    new KeyFrame
+                                    {
+                                        Cue = new Cue(0),
+                                        Setters =
+                                        {
+                                            new Setter(Canvas.LeftProperty, currentX),
+                                            new Setter(Canvas.TopProperty, currentY)
+                                        }
+                                    },
+                                    new KeyFrame
+                                    {
+                                        Cue = new Cue(1),
+                                        Setters =
+                                        {
+                                            new Setter(Canvas.LeftProperty, targetX),
+                                            new Setter(Canvas.TopProperty, targetY)
+                                        },
+                                        KeySpline = new KeySpline(0.33, 0, 0.66, 1) // 缓动曲线
+                                    }
+                                }
+                            };
+
+                            // 运行动画
+                            await animation.RunAsync(LeftPosition);
+
+                            // 确保最终位置准确（可选）
+                            Canvas.SetLeft(LeftPosition, targetX);
+                            Canvas.SetTop(LeftPosition, targetY);
+                            play = false;
                         });
+                        //Dispatcher.UIThread.InvokeAsync(() =>
+                        //{
+                        //    Canvas.SetLeft(LeftPosition, (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2);
+                        //    Canvas.SetTop(LeftPosition, (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2);
+                        //    //Canvas.SetLeft(RightPosition, right.screenX - RightPosition.Width  / 2);
+                        //    //Canvas.SetTop(RightPosition, right.screenY - RightPosition.Height / 2);
+                        //});
                         break;
                 }
             };
