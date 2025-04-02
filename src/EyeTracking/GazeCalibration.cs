@@ -1,16 +1,18 @@
 using MathNet.Numerics.LinearAlgebra;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks.Dataflow;
 
 namespace EyeTracking
 {
     //[AutoObservable]
     public sealed class GazeCalibration
     {
+        private double _lastX = 960; // 屏幕中心默认值
+        private double _lastY = 540;
         private readonly Vector<double> _coefficientsX;
         private readonly Vector<double> _coefficientsY;
-        private double _lastX = 0;
-        private double _lastY = 0;
         private const double RegularizationLambda = 1e-6;
 
         private EyeStabilizer stabilizer = new EyeStabilizer(
@@ -78,36 +80,136 @@ namespace EyeTracking
                 }).ToArray());
         }
 
+        // 类成员变量新增
+        private readonly Queue<PointF> _positionBuffer = new Queue<PointF>(5); // 历史位置缓存
+        private double _velocityEMA = 0;
+        private const double JitterThreshold = 50.0; // 像素/帧（200像素抖动对应值）
+        private const double DeadZoneRadius = 15.0; // 死区半径
+        private readonly object _bufferLock = new object();
+
         public (double screenX, double screenY) CalculateGazePoint(double deltaX, double deltaY)
         {
+            // 1. 原始坐标计算（保持原有逻辑）
             var features = new[] { deltaX, deltaY, deltaX * deltaY, deltaX * deltaX, deltaY * deltaY, 1 };
-            if (_lastX == 0 && _lastY == 0)
+            double rawX = Math.Clamp(_coefficientsX.Zip(features, (c, f) => c * f).Sum(), 70, 1850);
+            double rawY = Math.Clamp(_coefficientsY.Zip(features, (c, f) => c * f).Sum(), 70, 1000);
+
+            // 2. 动态抖动检测
+            double instantVelocity = (_lastX == 0 && _lastY == 0) ? 0 :
+                Math.Sqrt(Math.Pow(rawX - _lastX, 2) + Math.Pow(rawY - _lastY, 2));
+            _velocityEMA = double.IsNaN(instantVelocity) ? 0 :
+                0.8 * instantVelocity + 0.2 * _velocityEMA;
+
+            // 3. 多级处理
+            PointF result;
+            if (_positionBuffer.Count == 0)
             {
-                _lastX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1850 ? 1850 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
-                _lastY = _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum() > 1000 ? 1000 : _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum();
-                _lastX = _lastX < 70 ? 70 : _lastX;
-                _lastY = _lastY < 70 ? 70 : _lastY;
-                return (_lastX, _lastY);
+                result = new PointF((float)rawX, (float)rawY);
+            }
+            else if (_velocityEMA > JitterThreshold)
+            {
+                result = ApplyKalmanFilter(rawX, rawY);
+            }
+            else if (_velocityEMA > 5.0)
+            {
+                result = new PointF(
+                    (float)(_lastX + (rawX - _lastX) / 1.2),
+                    (float)(_lastY + (rawY - _lastY) / 1.2));
             }
             else
             {
-                double _thisX = _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum() > 1850 ? 1850 : _coefficientsX.ToArray().Zip(features, (c, f) => c * f).Sum();
-                double _thisY = _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum() > 1000 ? 1000 : _coefficientsY.ToArray().Zip(features, (c, f) => c * f).Sum();
-                _thisX = _thisX < 70 ? 70 : _thisX;
-                _thisY = _thisY < 70 ? 70 : _thisY;
-#if(false)
-                double _stepX = _lastX + (_thisX - _lastX) / 2;
-                double _stepY = _lastY + (_thisY - _lastY) / 2;
-                _lastX = _stepX;
-                _lastY = _stepY;
-                return (_stepX, _stepY);
-#else
-                PointF rawPoint = new PointF((float)_thisX, (float)_thisY);
-                var stabilizedPoint = stabilizer.Update(rawPoint);
-                // 使用平滑后的坐标...
-                return (stabilizedPoint.X, stabilizedPoint.Y);
-#endif
+                result = ApplyPrecisionStabilization(rawX, rawY);
             }
+
+            // 4. 死区控制（消除剩余微抖）
+            if (Math.Abs(result.X - _lastX) < DeadZoneRadius &&
+                Math.Abs(result.Y - _lastY) < DeadZoneRadius)
+            {
+                result = new PointF((float)_lastX, (float)_lastY);
+            }
+
+            // 5. 更新状态
+            lock (_bufferLock)
+            {
+                _positionBuffer.Enqueue(result);
+                if (_positionBuffer.Count > 5) _positionBuffer.Dequeue();
+                _lastX = result.X;
+                _lastY = result.Y;
+            }
+            return (result.X, result.Y);
+        }
+
+        private PointF ApplyKalmanFilter(double x, double y)
+        {
+            try
+            {
+                // 1. 安全检查缓冲区
+                if (_positionBuffer == null || _positionBuffer.Count < 2)
+                    return new PointF((float)x, (float)y);
+
+                // 2. 安全访问缓冲区元素
+                PointF prev1, prev2;
+                lock (_bufferLock) // 确保线程安全
+                {
+                    prev1 = _positionBuffer.LastOrDefault();
+                    prev2 = _positionBuffer.Count >= 2 ?
+                           _positionBuffer.ElementAt(_positionBuffer.Count - 2) : prev1;
+                }
+
+                // 3. 验证数据有效性
+                if (float.IsNaN(prev1.X)) prev1 = new PointF((float)x, (float)y);
+                if (float.IsNaN(prev2.X)) prev2 = prev1;
+
+                // 4. 动态计算卡尔曼增益
+                double baseGain = 0.2;
+                double velocity = Math.Sqrt(Math.Pow(prev1.X - prev2.X, 2) +
+                                 Math.Pow(prev1.Y - prev2.Y, 2));
+                double dynamicGain = Math.Clamp(baseGain * (1 + velocity / 100.0), 0.1, 0.5);
+
+                // 5. 带保护的预测计算
+                double predictedX, predictedY;
+                try
+                {
+                    predictedX = prev1.X + (prev1.X - prev2.X);
+                    predictedY = prev1.Y + (prev1.Y - prev2.Y);
+
+                    // 防止预测值溢出
+                    predictedX = Math.Clamp(predictedX, 70, 1850);
+                    predictedY = Math.Clamp(predictedY, 70, 1000);
+                }
+                catch
+                {
+                    predictedX = prev1.X;
+                    predictedY = prev1.Y;
+                }
+
+                // 6. 最终结果处理
+                float resultX = (float)(predictedX + dynamicGain * (x - predictedX));
+                float resultY = (float)(predictedY + dynamicGain * (y - predictedY));
+
+                // 二次验证
+                if (float.IsNaN(resultX)) resultX = (float)x;
+                if (float.IsNaN(resultY)) resultY = (float)y;
+
+                return new PointF(resultX, resultY);
+            }
+            catch (Exception ex)
+            {
+                //Debug.WriteLine($"Kalman Filter Error: {ex.Message}");
+                return new PointF((float)x, (float)y); // 故障安全返回
+            }
+        }
+
+        private PointF ApplyPrecisionStabilization(double x, double y)
+        {
+            // 高精度稳定算法
+            double avgX = _positionBuffer.Average(p => p.X);
+            double avgY = _positionBuffer.Average(p => p.Y);
+            double weight = 0.7; // 历史权重
+
+            return new PointF(
+                (float)(weight * avgX + (1 - weight) * x),
+                (float)(weight * avgY + (1 - weight) * y));
         }
 
         private static (double[] dx, double[] dy, double[] sx, double[] sy) ExtractFeatures(
