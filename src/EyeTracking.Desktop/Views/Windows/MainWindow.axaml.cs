@@ -13,6 +13,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         var vm = new EyeTrackViewModel(this);
         DataContext = vm;
+        this.Closed += MainWindow_Closed;
         new EyeTrackWindow(vm).Show();
+    }
+    private async void MainWindow_Closed(object sender, EventArgs e)
+    {
+        Environment.Exit(0);
     }
 }

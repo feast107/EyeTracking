@@ -95,7 +95,7 @@ public partial class EyeTrackWindow : Window
                             // 创建动画
                             var animation = new Animation
                             {
-                                Duration = TimeSpan.FromMilliseconds(30),
+                                Duration = TimeSpan.FromMilliseconds(100),
                                 FillMode = FillMode.Forward, // 保持动画结束状态
                                 Children =
                                 {
