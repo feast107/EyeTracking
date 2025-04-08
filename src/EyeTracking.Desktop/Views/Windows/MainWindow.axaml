@@ -66,14 +66,18 @@
                            SecondaryBorderColor="DeepPink" 
                            Padding="12">
                 <Grid ColumnDefinitions="*,Auto">
-                    <Grid RowDefinitions="2*,2*" ColumnDefinitions="2*,2*">
-                        <Grid>
+                    <Grid RowDefinitions="2*,2*" ColumnDefinitions="2*,2*,2*">
+						<Grid Grid.Row="0" Grid.Column="0">
                             <Image Source="{Binding Origin}" />
                             <TextBlock>原图</TextBlock>
                         </Grid>
                         <Grid Grid.Row="0" Grid.Column="1">
                             <Image Source="{Binding Subtraction}" />
                             <TextBlock>左眼明瞳</TextBlock>
+						</Grid>
+                        <Grid Grid.Row="0" Grid.Column="2">
+                            <Image Source="{Binding Debug_right_light}" />
+                            <TextBlock>右眼明瞳</TextBlock>
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="0">
                             <Image Source="{Binding BinSubtraction}" />
@@ -82,6 +86,10 @@
                         <Grid Grid.Row="1" Grid.Column="1">
                             <Image Source="{Binding Output}" />
                             <TextBlock>左眼暗瞳</TextBlock>
+                        </Grid>
+                        <Grid Grid.Row="1" Grid.Column="2">
+                            <Image Source="{Binding Debug_right_dark}" />
+                            <TextBlock>右眼暗瞳</TextBlock>
                         </Grid>
                     </Grid>
                     <ListBox Grid.Column="1" ItemsSource="{Binding Debugs}">

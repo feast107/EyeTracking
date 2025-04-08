@@ -97,6 +97,8 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial WriteableBitmap?    Subtraction    { get; set; }
     [ObservableProperty] public partial WriteableBitmap?    BinSubtraction { get; set; }
     [ObservableProperty] public partial WriteableBitmap?    Origin         { get; set; }
+    [ObservableProperty] public partial WriteableBitmap? Debug_right_light { get; set; }
+    [ObservableProperty] public partial WriteableBitmap? Debug_right_dark  { get; set; }
 
     [NotifyPropertyChangedFor(nameof(CanNext))]
     [NotifyPropertyChangedFor(nameof(PlayVisible))]
@@ -149,7 +151,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     {
         ClickCircles.Clear();
     }
-    
+
     //public void RecordTrack(double dxSamples, double dySamples, double r_dxSamples, double r_dySamples)
     //{
     //    ClickCircles.Add(new()
@@ -161,6 +163,52 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     //        ScreenPoint = new(MousePos.X, MousePos.Y),
     //    });
     //}
+
+    public async Task RecordTrackAsync()
+    {
+        // 把计算部分放到 Task.Run 中，避免阻塞 UI
+        var (verify_lx, verify_ly, verify_rx, verify_ry) = await Task.Run(() =>
+        {
+            List<double> dxSamples = new List<double>();
+            List<double> dySamples = new List<double>();
+            List<double> r_dxSamples = new List<double>();
+            List<double> r_dySamples = new List<double>();
+            const int maxSamples = 10;
+            const double varianceThreshold = 1e-4;
+            double lastVector = 0;
+
+            while (dxSamples.Count < maxSamples)
+            {
+                if (lastVector == LeftEyeVector.X) continue;
+                lastVector = LeftEyeVector.X;
+                dxSamples.Add(LeftEyeVector.X);
+                dySamples.Add(LeftEyeVector.Y);
+                r_dxSamples.Add(RightEyeVector.X);
+                r_dySamples.Add(RightEyeVector.Y);
+
+                if (dxSamples.Count > 7)
+                {
+                    var variance = CalculateVariance(dxSamples);
+                    var r_variance = CalculateVariance(r_dxSamples);
+                    if (variance < varianceThreshold && r_variance < varianceThreshold)
+                        break;
+                }
+            }
+
+            return (
+                Median(dxSamples),
+                Median(dySamples),
+                Median(r_dxSamples),
+                Median(r_dySamples)
+            );
+        });
+        ClickCircles.Add(new()
+        {
+            LeftEyeVector = new(verify_lx, verify_ly),
+            RightEyeVector = new(verify_rx, verify_ry),
+            ScreenPoint = new(MousePos.X, MousePos.Y),
+        });
+    }
     public void RecordTrack()
     {
         //多次检测
@@ -198,8 +246,6 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         Verify_ly = Median(dySamples);
         Verify_rx = Median(r_dxSamples);
         Verify_ry = Median(r_dySamples);
-        //vm.RecordTrack(ccv.Verify_lx, ccv.Verify_ly, ccv.Verify_rx, ccv.Verify_ry);
-#if (true)
         {
             ClickCircles.Add(new()
             {
@@ -210,18 +256,6 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 ScreenPoint = new(MousePos.X, MousePos.Y),
             });
         }
-#else
-        {
-            ClickCircles.Add(new()
-            {
-                LeftEyeVector = new(LeftEyeVector.X, LeftEyeVector.Y),
-                RightEyeVector = new(RightEyeVector.X, RightEyeVector.Y),
-                //LeftEyeVector = new(Verify_lx, Verify_ly),
-                //RightEyeVector = new(Verify_rx, Verify_ry),
-                ScreenPoint = new(MousePos.X, MousePos.Y),
-            });
-        }
-#endif
     }
 
     [RelayCommand]
@@ -263,6 +297,12 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 return;
             case EyeTrackContext<EyeDetectResult>.DebugHint.Output:
                 Output = mat.ToWriteableBitmap();
+                return;
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Debug_right_dark:
+                Debug_right_dark = mat.ToWriteableBitmap();
+                return;
+            case EyeTrackContext<EyeDetectResult>.DebugHint.Debug_right_light:
+                Debug_right_light = mat.ToWriteableBitmap();
                 return;
             case EyeTrackContext<EyeDetectResult>.DebugHint.Candidate:
                 return;

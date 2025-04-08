@@ -8,6 +8,7 @@ using Point = System.Drawing.Point;
 using Avalonia.Animation;
 using Avalonia.Media;
 using Avalonia.Styling;
+using System.Diagnostics;
 
 namespace EyeTracking.Desktop.Views.Windows;
 
@@ -139,9 +140,16 @@ public partial class EyeTrackWindow : Window
                         break;
                 }
             };
-            Canvas.PointerPressed += (o, e) =>
+            Canvas.PointerPressed += async (o, e) =>
             {
-                vm.RecordTrack();
+                try
+                {
+                    await vm.RecordTrackAsync(); // 异步调用，不阻塞 UI
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"录制失败: {ex.Message}");
+                }
             };
         };
     }

@@ -83,7 +83,7 @@ namespace EyeTracking
         // 类成员变量新增
         private readonly Queue<PointF> _positionBuffer = new Queue<PointF>(5); // 历史位置缓存
         private double _velocityEMA = 0;
-        private const double JitterThreshold = 50.0; // 像素/帧（200像素抖动对应值）
+        private const double JitterThreshold = 30.0; // 像素/帧（200像素抖动对应值）
         private const double DeadZoneRadius = 15.0; // 死区半径
         private readonly object _bufferLock = new object();
 
@@ -113,8 +113,8 @@ namespace EyeTracking
             else if (_velocityEMA > 5.0)
             {
                 result = new PointF(
-                    (float)(_lastX + (rawX - _lastX) / 1.2),
-                    (float)(_lastY + (rawY - _lastY) / 1.2));
+                    (float)(_lastX + (rawX - _lastX) / 1.7),
+                    (float)(_lastY + (rawY - _lastY) / 1.7));
             }
             else
             {

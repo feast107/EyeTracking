@@ -56,7 +56,9 @@ public abstract class EyeTrackContext<TResult> : IDisposable
         Output,
         Candidate,
         Subtraction,
-        Bin_Subtraction
+        Bin_Subtraction,
+        Debug_right_light,
+        Debug_right_dark
     }
 
     public void Dispose()
