@@ -173,20 +173,21 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
             List<double> dySamples = new List<double>();
             List<double> r_dxSamples = new List<double>();
             List<double> r_dySamples = new List<double>();
-            const int maxSamples = 10;
+            const int maxSamples = 50;
             const double varianceThreshold = 1e-4;
             double lastVector = 0;
 
             while (dxSamples.Count < maxSamples)
             {
-                if (lastVector == LeftEyeVector.X) continue;
+                //if (lastVector == LeftEyeVector.X) continue;
+                Thread.Sleep(50);
                 lastVector = LeftEyeVector.X;
                 dxSamples.Add(LeftEyeVector.X);
                 dySamples.Add(LeftEyeVector.Y);
                 r_dxSamples.Add(RightEyeVector.X);
                 r_dySamples.Add(RightEyeVector.Y);
 
-                if (dxSamples.Count > 7)
+                if (dxSamples.Count > maxSamples / 2)
                 {
                     var variance = CalculateVariance(dxSamples);
                     var r_variance = CalculateVariance(r_dxSamples);
