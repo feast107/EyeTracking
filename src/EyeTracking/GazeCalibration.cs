@@ -83,7 +83,7 @@ namespace EyeTracking
         // 类成员变量新增
         private readonly Queue<PointF> _positionBuffer = new Queue<PointF>(5); // 历史位置缓存
         private double _velocityEMA = 0;
-        private const double JitterThreshold = 30.0; // 像素/帧（200像素抖动对应值）
+        private const double JitterThreshold = 15.0; // 30像素/帧（200像素抖动对应值）
         private const double DeadZoneRadius = 15.0; // 死区半径
         private readonly object _bufferLock = new object();
 
@@ -98,19 +98,38 @@ namespace EyeTracking
             double instantVelocity = (_lastX == 0 && _lastY == 0) ? 0 :
                 Math.Sqrt(Math.Pow(rawX - _lastX, 2) + Math.Pow(rawY - _lastY, 2));
             _velocityEMA = double.IsNaN(instantVelocity) ? 0 :
-                0.8 * instantVelocity + 0.2 * _velocityEMA;
+                0.9 * instantVelocity + 0.1 * _velocityEMA;
 
             // 3. 多级处理
             PointF result;
             if (_positionBuffer.Count == 0)
             {
-                result = new PointF((float)rawX, (float)rawY);
+                //result = new PointF((float)rawX, (float)rawY);
+                //result = new PointF((float)(_lastX + (rawX - _lastX) / 10), (float)(_lastY + (rawY - _lastY) / 10));
+
+                const double maxWeight = 20.0;    // 零距离时的最大权重
+                const double decayRate = 0.007;   // 衰减系数（越大衰减越快）
+                const double minWeight = 1.0;     // 最小权重
+                // 计算当前点与上一个点的欧氏距离
+                double distance = Math.Sqrt(Math.Pow(rawX - _lastX, 2) + Math.Pow(rawY - _lastY, 2));
+
+                // 计算动态权重（使用指数衰减）
+                double dynamicWeight = Math.Max(maxWeight * Math.Exp(-decayRate * distance), minWeight);
+
+                // 应用加权平滑（考虑权重下限）
+                double effectiveWeight = Math.Max(dynamicWeight, minWeight);
+
+                // 计算新坐标（带平滑过渡）
+                double newX = _lastX + (rawX - _lastX) / effectiveWeight;
+                double newY = _lastY + (rawY - _lastY) / effectiveWeight;
+
+                result =  new PointF((float)newX, (float)newY);
             }
             else if (_velocityEMA > JitterThreshold)
             {
                 result = ApplyKalmanFilter(rawX, rawY);
             }
-            else if (_velocityEMA > 5.0)
+            else if (_velocityEMA > 10.0)
             {
                 result = new PointF(
                     (float)(_lastX + (rawX - _lastX) / 1.7),
@@ -125,13 +144,13 @@ namespace EyeTracking
             if (Math.Abs(result.X - _lastX) < DeadZoneRadius &&
                 Math.Abs(result.Y - _lastY) < DeadZoneRadius)
             {
-                result = new PointF((float)_lastX, (float)_lastY);
+                result = new PointF((float)(_lastX + (rawX - _lastX) / 10), (float)(_lastY + (rawY - _lastY) / 10));
             }
 
             // 5. 更新状态
             lock (_bufferLock)
             {
-                _positionBuffer.Enqueue(result);
+                //_positionBuffer.Enqueue(result);
                 if (_positionBuffer.Count > 5) _positionBuffer.Dequeue();
                 _lastX = result.X;
                 _lastY = result.Y;
@@ -205,7 +224,7 @@ namespace EyeTracking
             // 高精度稳定算法
             double avgX = _positionBuffer.Average(p => p.X);
             double avgY = _positionBuffer.Average(p => p.Y);
-            double weight = 0.7; // 历史权重
+            double weight = 0.9; // 历史权重
 
             return new PointF(
                 (float)(weight * avgX + (1 - weight) * x),

@@ -139,102 +139,59 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                         if (DetectReflection(light))
                         {
                             Stats.SuccessFrames++;
-                            if (true) // 单眼调试模式
-                            {
-                                using var lightEyeMat      = new Mat(light, p_eyes[0]);
-                                using var darkEyeMat       = new Mat(dark, p_eyes[0]);
-                                using var lightEyeOriginal = lightEyeMat.Clone();
-                                using var darkEyeOriginal  = darkEyeMat.Clone();
-                                var       leftCenter       = (Point)Result.LeftEyeCenter;
+                            using var lightEyeMat      = new Mat(light, p_eyes[0]);
+                            using var darkEyeMat       = new Mat(dark, p_eyes[0]);
+                            using var lightEyeOriginal = lightEyeMat.Clone();
+                            using var darkEyeOriginal  = darkEyeMat.Clone();
+                            var       leftCenter       = (Point)Result.LeftEyeCenter;
 
-                                var leftEyeCenterInSub = new Point(
-                                    leftCenter.X - p_eyes[0].X,
-                                    leftCenter.Y - p_eyes[0].Y
-                                );
-                                var leftPointInSub = new Point(
-                                    Result.Left.X + leftEyeCenterInSub.X,
-                                    Result.Left.Y + leftEyeCenterInSub.Y
-                                );
+                            var leftEyeCenterInSub = new Point(
+                                leftCenter.X - p_eyes[0].X,
+                                leftCenter.Y - p_eyes[0].Y
+                            );
+                            var leftPointInSub = new Point(
+                                Result.Left.X + leftEyeCenterInSub.X,
+                                Result.Left.Y + leftEyeCenterInSub.Y
+                            );
 
-                                //Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
-                                Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.Green, -1);
-                                Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.White, -1);
-                                //Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
+                            //Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.White, -1);
+                            //Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
 
-                                //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
-                                //    Stats.TotalFrames);
+                            //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
+                            //    Stats.TotalFrames);
 
-                                Debug(DebugHint.Subtraction, lightEyeMat);
-                                Debug(DebugHint.Output, darkEyeMat);
+                            Debug(DebugHint.Subtraction, lightEyeMat);
+                            Debug(DebugHint.Output, darkEyeMat);
 
-                                using var right_lightEyeMat = new Mat(light, p_eyes[1]);
-                                using var right_darkEyeMat = new Mat(dark, p_eyes[1]);
-                                using var right_lightEyeOriginal = right_lightEyeMat.Clone();
-                                using var right_darkEyeOriginal = right_darkEyeMat.Clone();
-                                var right_Center = (Point)Result.RightEyeCenter;
+                            using var right_lightEyeMat = new Mat(light, p_eyes[1]);
+                            using var right_darkEyeMat = new Mat(dark, p_eyes[1]);
+                            using var right_lightEyeOriginal = right_lightEyeMat.Clone();
+                            using var right_darkEyeOriginal = right_darkEyeMat.Clone();
+                            var right_Center = (Point)Result.RightEyeCenter;
 
-                                var right_EyeCenterInSub = new Point(
-                                    right_Center.X - p_eyes[1].X,
-                                    right_Center.Y - p_eyes[1].Y
-                                );
-                                var right_PointInSub = new Point(
-                                    Result.Right.X + right_EyeCenterInSub.X,
-                                    Result.Right.Y + right_EyeCenterInSub.Y
-                                );
+                            var right_EyeCenterInSub = new Point(
+                                right_Center.X - p_eyes[1].X,
+                                right_Center.Y - p_eyes[1].Y
+                            );
+                            var right_PointInSub = new Point(
+                                Result.Right.X + right_EyeCenterInSub.X,
+                                Result.Right.Y + right_EyeCenterInSub.Y
+                            );
 
-                                //Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.Green, -1);
-                                Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.Green, -1);
-                                Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.White, -1);
-                                //Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.White, -1);
+                            //Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.White, -1);
+                            //Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.White, -1);
 
-                                //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
-                                //    Stats.TotalFrames);
+                            //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
+                            //    Stats.TotalFrames);
 
-                                Debug(DebugHint.Debug_right_light, right_lightEyeMat);
-                                Debug(DebugHint.Debug_right_dark, right_darkEyeMat);
+                            Debug(DebugHint.Debug_right_light, right_lightEyeMat);
+                            Debug(DebugHint.Debug_right_dark, right_darkEyeMat);
 
-                                Debug(DebugHint.Bin_Subtraction, thisMat);
-                            }
-                            else // 双眼模式
-                            {
-                                using (var leftEyeMat = new Mat(light, p_eyes[0]))
-                                using (var rightEyeMat = new Mat(light, p_eyes[1]))
-                                using (var leftEyeOriginal = leftEyeMat.Clone())
-                                using (var rightEyeOriginal = rightEyeMat.Clone())
-                                {
-                                    var leftCenter  = (Point)Result.LeftEyeCenter;
-                                    var rightCenter = (Point)Result.RightEyeCenter;
-
-                                    var leftEyeCenterInSub = new Point(
-                                        leftCenter.X - p_eyes[0].X,
-                                        leftCenter.Y - p_eyes[0].Y
-                                    );
-                                    var leftPointInSub = new Point(
-                                        Result.Left.X + leftEyeCenterInSub.X,
-                                        Result.Left.Y + leftEyeCenterInSub.Y
-                                    );
-                                    var rightEyeCenterInSub = new Point(
-                                        rightCenter.X - p_eyes[1].X,
-                                        rightCenter.Y - p_eyes[1].Y
-                                    );
-                                    var rightPointInSub = new Point(
-                                        Result.Right.X + rightEyeCenterInSub.X,
-                                        Result.Right.Y + rightEyeCenterInSub.Y
-                                    );
-
-                                    Cv2.Circle(leftEyeMat, leftEyeCenterInSub, 2, Scalar.Green, -1);
-                                    Cv2.Circle(leftEyeMat, leftPointInSub, 1, Scalar.White, -1);
-                                    Cv2.Circle(rightEyeMat, rightEyeCenterInSub, 2, Scalar.Green, -1);
-                                    Cv2.Circle(rightEyeMat, rightPointInSub, 1, Scalar.White, -1);
-
-                                    SaveProcessedEyeImages(leftEyeMat, rightEyeMat, leftEyeOriginal, rightEyeOriginal,
-                                        Stats.TotalFrames);
-
-                                    Debug(DebugHint.Subtraction, leftEyeMat);
-                                    Debug(DebugHint.Output, rightEyeMat);
-                                    Debug(DebugHint.Bin_Subtraction, thisMat);
-                                }
-                            }
+                            Debug(DebugHint.Bin_Subtraction, thisMat);
                         }
                     }
                 }
@@ -244,13 +201,13 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                 }
             }
 
-            //Trace(0, "总共处理"                               + Stats.TotalFrames);
-            //Trace((KeyedEyeDetectTrace.TraceKey)99, "成功"  + Stats.SuccessFrames);
-            //Trace((KeyedEyeDetectTrace.TraceKey)1, "眼睛异常" + Stats.NoEyesDetectedCount);
-            //Trace((KeyedEyeDetectTrace.TraceKey)5, "眼睛没有" + Stats.NoEyesDetectedCount2);
-            //Trace((KeyedEyeDetectTrace.TraceKey)2, "明暗异常" + Stats.NoCheckLightCount);
-            //Trace((KeyedEyeDetectTrace.TraceKey)3, "瞳孔异常" + Stats.NoPuilpDetectedCount);
-            //Trace((KeyedEyeDetectTrace.TraceKey)4, "亮斑异常" + Stats.NoReflectionDetectedCount);
+            Trace(0, "总共处理" + Stats.TotalFrames * 2);
+            Trace((KeyedEyeDetectTrace.TraceKey)99, "成功" + Stats.SuccessFrames);
+            Trace((KeyedEyeDetectTrace.TraceKey)1, "眼睛异常" + Stats.NoEyesDetectedCount);
+            Trace((KeyedEyeDetectTrace.TraceKey)5, "无眼睛" + Stats.NoEyesDetectedCount2);
+            Trace((KeyedEyeDetectTrace.TraceKey)2, "明暗异常" + Stats.NoCheckLightCount);
+            Trace((KeyedEyeDetectTrace.TraceKey)3, "瞳孔异常（总*2）" + Stats.NoPuilpDetectedCount);
+            Trace((KeyedEyeDetectTrace.TraceKey)4, "亮斑异常（总*2）" + Stats.NoReflectionDetectedCount);
         }
         else
         {
@@ -301,33 +258,6 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         var croppedRegion = new Mat(image, rect);
         // Cv2.ImShow("test", croppedRegion);
         return croppedRegion.Sum();
-    }
-
-    // 辅助方法：区域边界限制
-    private Rect ClampRect(Mat image, Rect rect)
-    {
-        return new Rect(
-            Math.Max(0, rect.X),
-            Math.Max(0, rect.Y),
-            Math.Min(image.Cols - rect.X, rect.Width),
-            Math.Min(image.Rows - rect.Y, rect.Height)
-        );
-    }
-
-    // 辅助方法：使用眼部分类器验证
-    private Rect ValidateEyeRegion(Mat image, Rect candidate)
-    {
-        if (candidate.Width <= 0 || candidate.Height <= 0)
-            return candidate;
-
-        var eyes = EyeCascade.DetectMultiScale(
-            image[candidate],
-            1.1, 3,
-            HaarDetectionTypes.ScaleImage,
-            new Size(20, 20)
-        );
-
-        return eyes.Length > 0 ? eyes[0] + new Point(candidate.X, candidate.Y) : candidate;
     }
     private bool DetectEyes(Mat image, Rect[] middleEye, int i)
     {

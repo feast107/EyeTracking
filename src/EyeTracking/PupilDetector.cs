@@ -1,6 +1,7 @@
 ﻿using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 public class FastPupilDetector
@@ -75,8 +76,32 @@ public class FastPupilDetector
         {
             currentAttempt++;
 
+            // 1. 检测并标记反光点（高亮区域）
+            Mat mask = new Mat();
+            Cv2.Threshold(lightPupilImage, mask, 220, 255, ThresholdTypes.Binary); // 250为亮度阈值，可根据实际情况调整
+
+            // 2. 对暗瞳孔图像也进行同样处理（确保一致性）
+            Mat maskDark = new Mat();
+            Cv2.Threshold(darkPupilImage, maskDark, 220, 255, ThresholdTypes.Binary);
+
+            // 3. 合并两个掩模
+            Cv2.BitwiseOr(mask, maskDark, mask);
+
+            // 4. 对掩模进行膨胀操作，确保覆盖整个反光区域
+            Cv2.Dilate(mask, mask, Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(5, 5)));
+
+            // 5. 使用邻域均值填充反光区域
+            Mat inpaintedLight = new Mat();
+            Cv2.Inpaint(lightPupilImage, mask, inpaintedLight, 3, InpaintMethod.NS);
+
+            Mat inpaintedDark = new Mat();
+            Cv2.Inpaint(darkPupilImage, mask, inpaintedDark, 3, InpaintMethod.NS);
+
+            // 6. 现在可以安全地进行加权相加
+            Cv2.AddWeighted(inpaintedLight, 1.0, inpaintedDark, darkWeight, 0, diff_pre);
+
             // 第二步：加权混合图像
-            Cv2.AddWeighted(lightPupilImage, 1.0, darkPupilImage, darkWeight, 0, diff_pre);
+            //Cv2.AddWeighted(lightPupilImage, 1.0, darkPupilImage, darkWeight, 0, diff_pre);
 
             //// 第三步：与暗瞳孔掩码进行与运算
             //Cv2.BitwiseAnd(diff_pre, binaryDarkPupil, diff_sec);
@@ -197,42 +222,92 @@ public class FastPupilDetector
         {
 
         }*/
-        if (contours.Length > 0)
+        if (contours != null && contours.Length > 0)
         {
-            // 1. 取面积最大的轮廓
-            var maxContour = contours.OrderByDescending(c => Cv2.ContourArea(c)).First();
-
-            // 2. 椭圆拟合（比圆更适合斜视情况）
-            var fittedEllipse = Cv2.FitEllipse(maxContour);
-            pupilCenter = (Point)fittedEllipse.Center; // 直接使用椭圆中心
-
-            // 3. 计算椭圆的几何特性
-            double axisRatio = Math.Min(fittedEllipse.Size.Width, fittedEllipse.Size.Height) /
-                              Math.Max(fittedEllipse.Size.Width, fittedEllipse.Size.Height);
-            double angle = fittedEllipse.Angle; // 椭圆倾斜角度（0~180度）
-
-            // 4. 动态修正圆心（示例：根据长短轴比例微调）
-            if (axisRatio < 0.8) // 如果椭圆明显不对称（斜视）
+            try
             {
-                // 沿椭圆长轴方向偏移（可根据实际需求调整公式）
-                double offsetScale = (1 - axisRatio) * 5; // 偏移系数
-                pupilCenter.X += (int)(offsetScale * Math.Cos(angle * Math.PI / 180));
-                pupilCenter.Y += (int)(offsetScale * Math.Sin(angle * Math.PI / 180));
+                // 1. 取面积最大的有效轮廓（过滤掉过小的轮廓）
+                const double minContourArea = 50.0; // 根据实际场景调整最小面积阈值
+                var validContours = contours.Where(c => Cv2.ContourArea(c) > minContourArea);
+
+                if (validContours.Any())
+                {
+                    var maxContour = validContours.OrderByDescending(c => Cv2.ContourArea(c)).First();
+
+                    // 2. 椭圆拟合（增加拟合验证）
+                    if (maxContour.Length >= 5) // FitEllipse要求至少5个点
+                    {
+                        var fittedEllipse = Cv2.FitEllipse(maxContour);
+
+                        // 验证椭圆参数合理性
+                        if (fittedEllipse.Size.Width > 0 && fittedEllipse.Size.Height > 0)
+                        {
+                            pupilCenter = (Point)fittedEllipse.Center;
+
+                            // 3. 计算椭圆的几何特性（增加边界检查）
+                            double majorAxis = Math.Max(fittedEllipse.Size.Width, fittedEllipse.Size.Height);
+                            double minorAxis = Math.Min(fittedEllipse.Size.Width, fittedEllipse.Size.Height);
+                            double axisRatio = minorAxis / majorAxis;
+                            double angle = fittedEllipse.Angle % 180; // 规范化角度到0-180度
+
+                            // 4. 动态修正圆心（增加修正限制）
+                            const double minAxisRatioForCorrection = 0.8;
+                            const double maxCorrectionOffset = 10.0; // 最大修正偏移量
+
+                            if (axisRatio < minAxisRatioForCorrection)
+                            {
+                                // 计算修正偏移量（带限幅）
+                                double offsetScale = Math.Min((1 - axisRatio) * 5, maxCorrectionOffset);
+
+                                // 转换为弧度并计算偏移
+                                double angleRad = angle * Math.PI / 180;
+                                int offsetX = (int)(offsetScale * Math.Cos(angleRad));
+                                int offsetY = (int)(offsetScale * Math.Sin(angleRad));
+
+                                // 应用修正（确保不越界）
+                                pupilCenter.X = Math.Max(0, Math.Min(darkPupilImage.Width - 1, pupilCenter.X + offsetX));
+                                pupilCenter.Y = Math.Max(0, Math.Min(darkPupilImage.Height - 1, pupilCenter.Y + offsetY));
+                            }
+
+                            // 5. 可视化（增加注释和样式区分）
+                            // 绘制轮廓（蓝色，2px宽）
+                            Cv2.DrawContours(result, new[] { maxContour }, -1, new Scalar(255, 0, 0), 2);
+
+                            // 绘制拟合椭圆（黄色虚线）
+                            Cv2.Ellipse(result, fittedEllipse, new Scalar(0, 255, 255), 1, LineTypes.Link4);
+
+                            // 绘制修正后的圆心（绿色实心点，3px半径）
+                            Cv2.Circle(result, pupilCenter, 3, new Scalar(0, 255, 0), -1);
+
+                            // 可选：绘制原始最小外接圆（红色虚线，1px宽）
+                            Cv2.MinEnclosingCircle(maxContour, out var circleCenter, out var circleRadius);
+                            Cv2.Circle(result, (Point)circleCenter, (int)circleRadius,
+                                      new Scalar(0, 0, 255), 1, LineTypes.Link4);
+                        }
+                        else
+                        {
+                            Debug.WriteLine("警告：拟合椭圆参数无效");
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine("警告：轮廓点数不足，无法拟合椭圆");
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine("警告：未找到有效轮廓（面积过小）");
+                }
             }
-
-            // 5. 可视化
-            // 绘制轮廓（蓝色）
-            Cv2.DrawContours(result, new[] { maxContour }, -1, Scalar.Blue, 1);
-
-            // 绘制拟合椭圆（黄色）
-            Cv2.Ellipse(result, fittedEllipse, Scalar.Yellow, 1);
-
-            // 绘制修正后的圆心（绿色实心点）
-            Cv2.Circle(result, pupilCenter, 1, Scalar.Green, -1);
-
-            // 可选：绘制原始最小外接圆（红色虚线）
-            Cv2.MinEnclosingCircle(maxContour, out var circleCenter, out var circleRadius);
-            Cv2.Circle(result, (Point)circleCenter, (int)circleRadius, Scalar.Red, 1, LineTypes.Link4);
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"瞳孔检测异常：{ex.Message}");
+                // 可考虑回退到其他检测方法或使用默认值
+            }
+        }
+        else
+        {
+            Debug.WriteLine("警告：未检测到任何轮廓");
         }
 
         // 6.显示结果（放大2倍）

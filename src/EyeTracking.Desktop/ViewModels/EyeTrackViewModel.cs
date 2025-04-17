@@ -124,6 +124,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial double Verify_ry { get; set; }
 
     [field: AllowNull, MaybeNull] public ObservableCollection<ClickCircleViewModel> ClickCircles => field ??= [];
+    [field: AllowNull, MaybeNull] public ObservableCollection<ClickCircleViewModel> ClickCircles_default => field ??= [];
 
     public bool CanNext => CanPlay && !AutoPlay;
     public bool CanPlay => Enumerator is not null;
@@ -173,14 +174,14 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
             List<double> dySamples = new List<double>();
             List<double> r_dxSamples = new List<double>();
             List<double> r_dySamples = new List<double>();
-            const int maxSamples = 50;
+            const int maxSamples = 70;
             const double varianceThreshold = 1e-4;
             double lastVector = 0;
 
             while (dxSamples.Count < maxSamples)
             {
                 //if (lastVector == LeftEyeVector.X) continue;
-                Thread.Sleep(50);
+                Thread.Sleep(30);
                 lastVector = LeftEyeVector.X;
                 dxSamples.Add(LeftEyeVector.X);
                 dySamples.Add(LeftEyeVector.Y);
@@ -197,10 +198,10 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
             }
 
             return (
-                Median(dxSamples),
-                Median(dySamples),
-                Median(r_dxSamples),
-                Median(r_dySamples)
+                GetMostProbableValue(dxSamples),
+                GetMostProbableValue(dySamples),
+                GetMostProbableValue(r_dxSamples),
+                GetMostProbableValue(r_dySamples) //Median
             );
         });
         ClickCircles.Add(new()
@@ -257,6 +258,52 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 ScreenPoint = new(MousePos.X, MousePos.Y),
             });
         }
+    }
+
+    public void Calibration_default()
+    {
+        // 清空现有数据
+        //ClickCircles_default.Clear();
+
+        // 9个默认校准点（可根据实际需求调整这些值）
+        var defaultPoints = new[]
+        {
+            // 左上
+            new { LeftEye = (X: 6.0, Y: 5.5), RightEye = (X: 4.0, Y: 4.0), Screen = (X: 73.0, Y: 119.0) },
+            // 中上
+            new { LeftEye = (X: 0.0, Y: 5.0), RightEye = (X: 0.0, Y: 5.0), Screen = (X: 965.0, Y: 95.0) },
+            // 右上
+            new { LeftEye = (X: -3.0, Y: 4.0), RightEye = (X: -6.0, Y: 6.0), Screen = (X: 1733.0, Y: 94.0) },
+            // 左中
+            new { LeftEye = (X: 5.0, Y: 3.0), RightEye = (X: 4.0, Y: 2.0), Screen = (X: 46.0, Y: 557.0) },
+            // 中心
+            new { LeftEye = (X: 1.0, Y: 3.0), RightEye = (X: 0.0, Y: 3.0), Screen = (X: 989.0, Y: 550.0) },
+            // 右中
+            new { LeftEye = (X: -3.0, Y: 2.0), RightEye = (X: -3.0, Y: 2.0), Screen = (X: 1717.0, Y: 550.0) },
+            // 左下
+            new { LeftEye = (X: 5.0, Y: 1.0), RightEye = (X: 4.0, Y: 0.0), Screen = (X: 63.0, Y: 997.0) },
+            // 中下
+            new { LeftEye = (X: 0.0, Y: 1.0), RightEye = (X: 0.0, Y: 1.0), Screen = (X: 961.0, Y: 994.0) },
+            // 右下
+            new { LeftEye = (X: -4.0, Y: 1.0), RightEye = (X: -4.0, Y: -0.0), Screen = (X: 1711.0, Y: 994.0) }
+        };
+
+        // 添加所有默认点
+        foreach (var point in defaultPoints)
+        {
+            ClickCircles_default.Add(new()
+            {
+                LeftEyeVector = new(point.LeftEye.X, point.LeftEye.Y),
+                RightEyeVector = new(point.RightEye.X, point.RightEye.Y),
+                ScreenPoint = new(point.Screen.X, point.Screen.Y)
+            });
+        }
+
+        // 初始化校准器
+        LeftGazeCalibration = new GazeCalibration(ClickCircles_default.Select(x =>
+            (x.LeftEyeVector.X, x.LeftEyeVector.Y, x.ScreenPoint.X, x.ScreenPoint.Y)));
+        RightGazeCalibration = new GazeCalibration(ClickCircles_default.Select(x =>
+            (x.RightEyeVector.X, x.RightEyeVector.Y, x.ScreenPoint.X, x.ScreenPoint.Y)));
     }
 
     [RelayCommand]
@@ -518,5 +565,36 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         return medianFiltered
             .Where(x => Math.Abs(x - median) < threshold)
             .ToList();
+    }
+    public double GetMostProbableValue(List<double> rawSamples)
+    {
+        if (rawSamples == null || rawSamples.Count == 0)
+            return double.NaN; // 或 throw new ArgumentException
+
+        // 1. 中值滤波（窗口大小=5）
+        var medianFiltered = new List<double>();
+        for (int i = 0; i < rawSamples.Count; i++)
+        {
+            var window = rawSamples
+                .Skip(Math.Max(0, i - 2))
+                .Take(5)
+                .ToList();
+
+            window.Sort();
+            medianFiltered.Add(window[window.Count / 2]);
+        }
+
+        // 2. 计算MAD剔除极端异常值
+        double median = Median(medianFiltered);
+        double mad = Median(medianFiltered.Select(x => Math.Abs(x - median)));
+        double threshold = 3 * 1.4826 * mad;
+
+        var validSamples = medianFiltered
+            .Where(x => Math.Abs(x - median) <= threshold)
+            .ToList();
+
+        // 3. 返回加权平均值（中位数占50%权重，平均值占50%）
+        double validMean = validSamples.Average();
+        return (median * 0.5) + (validMean * 0.5);
     }
 }

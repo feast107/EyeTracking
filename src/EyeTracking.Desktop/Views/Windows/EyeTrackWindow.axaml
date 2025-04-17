@@ -13,9 +13,16 @@
         <Grid>
             <Grid>
                 <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="120" Width="120" />
-                    <Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="DimGray" Opacity="0.7" Height="120" Width="120" />
-                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.7" Height="120" Width="120" />
+                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="50" Width="50" />
+					<Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="#CC6699FF" Opacity="0.7" Height="50" Width="50">
+						<Ellipse.RenderTransform>
+							<TransformGroup>
+								<ScaleTransform/>
+								<TranslateTransform/>
+							</TransformGroup>
+						</Ellipse.RenderTransform>
+					</Ellipse>
+                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.7" Height="50" Width="50" />
                 </Canvas>
             </Grid>
             <Grid>
@@ -31,11 +38,11 @@
                         <Run Text="{Binding CanvasPos}" />
                     </TextBlock>
                 </StackPanel>
-                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Orientation="Horizontal">
+                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Orientation="Horizontal">
                     <Button Background="Black" Command="{Binding CleanRecordCommand}" Margin="0,0,8,0">清空</Button>
                     <Button Background="Black" Command="{Binding  CalibrationCommand}">校准</Button>
                 </StackPanel>
-                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Center"
+                <StackPanel Background="#626262aa" VerticalAlignment="Top" HorizontalAlignment="Right"
                             Orientation="Horizontal">
 					<ListBox ItemsSource="{Binding  Tracker.Traces}">
                         <ListBox.ItemTemplate>
