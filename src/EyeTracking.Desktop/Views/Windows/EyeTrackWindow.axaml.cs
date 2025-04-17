@@ -291,10 +291,10 @@ public partial class EyeTrackWindow : Window
 
                 // 计算目标位置（带随机气泡偏移）
                 var random = new Random();
-                var targetX = (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2
-                             + (random.NextDouble() - 0.5) * 6;
-                var targetY = (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2
-                             + (random.NextDouble() - 0.5) * 6;
+                var targetX = (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2;
+                             //+ (random.NextDouble() - 0.5) * 6;
+                var targetY = (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2;
+                             //+ (random.NextDouble() - 0.5) * 6;
 
                 // 计算移动距离决定动画时长（动态速度）
                 var distance = Math.Sqrt(

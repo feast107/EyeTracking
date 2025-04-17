@@ -115,7 +115,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     {
         Mat thisMat = new Mat();
         Cv2.Flip(flipped, thisMat, FlipMode.Y); // 或者 FlipMode.X 表示上下翻转
-        Debug(DebugHint.Origin, thisMat);
+        //Debug(DebugHint.Origin, thisMat);
         if (LastMat is not null)
         {
             Stats.TotalFrames++;

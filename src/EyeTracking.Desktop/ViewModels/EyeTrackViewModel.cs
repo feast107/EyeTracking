@@ -26,22 +26,38 @@ namespace EyeTracking.Desktop.ViewModels;
 [AutoKeyAccessor]
 public partial class EyeTrackViewModel : ObservableObject, IDisposable
 {
+    private System.Timers.Timer _timer;
     public EyeTrackViewModel(Window window)
     {
         this.window = window;
-        var interval = 1000 ;
-        Task.Run(() =>
-        {
-            while (true)
+        //var interval = 1000 ;
+        //Task.Run(() =>
+        //{
+        //    while (true)
+        //    {
+        //        PInvoke.GetCursorPos(out var point);
+        //        MousePos = point;
+        //        if (interval-- > 0) continue;
+        //        interval = 1000;
+        //        OnPropertyChanged(nameof(Fps));
+        //        OnPropertyChanged(nameof(AlgFps));
+        //    }
+        //});
+        var interval = 60;
+        _timer = new System.Timers.Timer(16);  // ~60Hz
+        _timer.Elapsed += (s, e) =>
             {
                 PInvoke.GetCursorPos(out var point);
                 MousePos = point;
-                if (interval-- > 0) continue;
-                interval = 1000;
+
+            if (interval-- <= 0)
+            {
+                interval = 60;
                 OnPropertyChanged(nameof(Fps));
                 OnPropertyChanged(nameof(AlgFps));
             }
-        });
+        };
+        _timer.Start();
     }
 
     private readonly Window window;
@@ -491,7 +507,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 //CopyCost = cost.ElapsedMilliseconds;
                 if (EnableSave) mat.SaveImage((FilePath)SavePath / DateTimeOffset.Now.Ticks.ToString() + ".png");
                 if (EnableDetect) Detect(mat);
-                //Origin = mat.ToWriteableBitmap();
+                Origin = mat.ToWriteableBitmap();
             });
             var input = doubleBuffer.CreateInput();
             capture.Start((buffer, length) => input(buffer, length));
