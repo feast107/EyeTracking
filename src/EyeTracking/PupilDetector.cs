@@ -10,6 +10,164 @@ public class FastPupilDetector
     private const int BUFFER_SIZE = 5;
     private Mat _visualization;
 
+    public Point LocateT3(Mat darkPupilImage, Mat lightPupilImage)
+    {// 1. 转为灰度图
+        Mat gray = new Mat();
+        if (darkPupilImage.Channels() > 1)
+            Cv2.CvtColor(darkPupilImage, gray, ColorConversionCodes.BGR2GRAY);
+        else
+            darkPupilImage.CopyTo(gray);
+
+        // 2. 高斯模糊降噪
+       // Cv2.GaussianBlur(gray, gray, new Size(5, 5), 1);
+
+        // 3. 霍夫圆检测
+        var circles = Cv2.HoughCircles(
+            gray,
+            HoughModes.Gradient,
+            dp: 2,           // 分辨率比例
+            minDist: 20,     // 圆之间的最小距离
+            param1: 100,     // Canny边缘检测阈值
+            param2: 30,      // 圆心累加阈值（越小检测越多）
+            minRadius: 2,   // 最小半径
+            maxRadius: 10    // 最大半径
+        );
+
+        // 4. 绘制检测到的所有圆
+        if (circles != null && circles.Length > 0)
+        {
+            // 创建一个掩膜
+            var mask = new Mat();
+            mask = darkPupilImage.Clone();
+
+            // 遍历所有检测到的圆
+            for (int i = 0; i < circles.Length; i++)
+            {
+                var circle = circles[i];
+                Point center = new Point((int)circle.Center.X, (int)circle.Center.Y);
+                int radius = (int)circle.Radius;
+
+                // 在原始图像上绘制圆（红色边框）
+                Cv2.Circle(mask, center, radius, Scalar.Red, 2);
+                Debug.WriteLine($"圆 {i + 1}: 中心={center}, 半径={radius}, 圆形度={radius:F2}");
+            }
+
+            // 显示掩膜（可选）
+            DebugMat(mask);
+
+            // 返回第一个圆的中心（或根据需求调整）
+            Point firstCenter = new Point((int)circles[0].Center.X, (int)circles[0].Center.Y);
+            return firstCenter;
+        }
+        return new Point(0, 0); // 未检测到圆时返回默认值
+    }
+
+    public Point LocateT2(Mat darkPupilImage, Mat lightPupilImage)
+    {
+        const int minPupilDiameter = 70;
+        const int maxPupilDiameter = 100;
+        const int morphKernelSize = 3;
+
+        try
+        {
+            // === 1. 专用瞳孔增强 ===
+            Debug.WriteLine($"图像类型: {darkPupilImage.Type()}"); // 应输出CV_8UC1或CV_16UC1
+            if (darkPupilImage.Empty())
+                throw new ArgumentException("输入图像为空");
+            Mat enhanced = new Mat();
+            if (darkPupilImage.Channels() > 1)
+                Cv2.CvtColor(darkPupilImage, enhanced, ColorConversionCodes.BGR2GRAY);
+            else
+                darkPupilImage.ConvertTo(enhanced, MatType.CV_8UC1);
+
+            // 1.1 高斯拉普拉斯增强边缘 (LoG)
+            // 保留浮点结果
+            Mat laplacian = new Mat();
+            Cv2.Laplacian(enhanced, laplacian, MatType.CV_32F);
+
+            // 归一化到可视范围
+            Cv2.Normalize(laplacian, enhanced, 0, 255, NormTypes.MinMax);
+            enhanced.ConvertTo(enhanced, MatType.CV_8UC1);
+            Cv2.GaussianBlur(enhanced, enhanced, new Size(5, 5), 0);
+
+            // 1.2 降低 CLAHE 的 clipLimit，避免过度增强
+            using (var clahe = Cv2.CreateCLAHE(clipLimit: 8.0, tileGridSize: new Size(8, 8))) // 降低 clipLimit
+                clahe.Apply(enhanced, enhanced);
+
+            // === 2. 圆形检测优化 ===
+            Mat binary = new Mat();
+            //Cv2.Threshold(enhanced, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+            binary = enhanced.Clone();
+
+            // 2.1 形态学操作强化圆形
+            var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(morphKernelSize, morphKernelSize));
+            Cv2.MorphologyEx(binary, binary, MorphTypes.Close, kernel);
+
+            DebugMat(binary);
+
+            // === 3. 霍夫圆检测 (专为70-100像素优化) ===
+            var circles = Cv2.HoughCircles(
+                binary,
+                HoughModes.Gradient,
+                dp: 1.2,  // 提高检测精度
+                minDist: maxPupilDiameter * 1.5, // 避免重叠检测
+                param1: 100, // Canny边缘阈值
+                param2: 30,  // 圆心累加阈值
+                minRadius: minPupilDiameter / 2,
+                maxRadius: maxPupilDiameter / 2
+            );
+
+            // 3.1 选择最佳候选圆
+            if (circles != null && circles.Length > 0)
+            {
+                // 优先选择最接近图像中心的圆
+                var centerPoint = new Point2f(enhanced.Width / 2f, enhanced.Height / 2f);
+                var bestCircle = circles.OrderBy(c => Distance(c.Center, centerPoint)).First();
+
+                // 二次验证：检查圆形度
+                var mask = new Mat(binary.Size(), MatType.CV_8UC1, Scalar.Black);
+                Cv2.Circle(mask, (Point)bestCircle.Center, (int)bestCircle.Radius, Scalar.White, -1);
+
+                double circleArea = Math.PI * bestCircle.Radius * bestCircle.Radius;
+                double actualArea = Cv2.CountNonZero(mask);
+                double circularity = actualArea / circleArea;
+
+                if (circularity > 0.7) // 圆形度阈值
+                    return new Point((int)bestCircle.Center.X, (int)bestCircle.Center.Y);
+            }
+
+            // === 4. 备用方案：轮廓检测 ===
+            var contours = Cv2.FindContoursAsArray(binary, RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+            var validContours = contours.Where(c =>
+            {
+                double area = Cv2.ContourArea(c);
+                double equivalentRadius = Math.Sqrt(area / Math.PI);
+                return equivalentRadius >= minPupilDiameter / 2 &&
+                       equivalentRadius <= maxPupilDiameter / 2;
+            }).ToList();
+
+            if (validContours.Any())
+            {
+                var largestContour = validContours.OrderByDescending(c => Cv2.ContourArea(c)).First();
+                var moments = Cv2.Moments(largestContour);
+                return new Point((int)(moments.M10 / moments.M00), (int)(moments.M01 / moments.M00));
+            }
+
+            return new Point(0, 0);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"瞳孔定位失败: {ex.Message}");
+            return new Point(0, 0);
+        }
+    }
+
+    // 计算两点间距离
+    private static float Distance(Point2f p1, Point2f p2)
+    {
+        return (float)Math.Sqrt(Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2));
+    }
+
     public Point LocateT(Mat darkPupilImage, Mat lightPupilImage)
     {
         //Cv2.EqualizeHist(darkPupilImage, darkPupilImage);
@@ -31,80 +189,87 @@ public class FastPupilDetector
         Mat binaryDarkPupil = new Mat();
         Mat gaussianBlurDark = new Mat();
         double darkWeight = -0.8;  // 初始权重
-        int maxAttempts = 7;       // 最大尝试次数
-        int minWhiteArea = 97;    // 您需要设定的最小白色区域面积阈值
-        int maxWhiteArea = 127;    // 您需要设定的最小白色区域面积阈值
+        int maxAttempts = 10;       // 最大尝试次数
+        int minWhiteArea = 20;    // 您需要设定的最小白色区域面积阈值
+        int maxWhiteArea = 77;    // 您需要设定的最大白色区域面积阈值
         int currentAttempt = 0;
         int currentBlackHandle = 0;
-        int threshold_v = 17;
+        int threshold_v = 22;
 
         int newBlockSize = 27;   // 减小窗口大小
-        double newC = 47;           // 减小常数C
+        double newC = 52;           // 减小常数C
         Mat diff = new Mat();
         using var diff_pre = new Mat();
         using var diff_sec = new Mat();
-        Cv2.GaussianBlur(darkPupilImage, gaussianBlurDark, new Size(13, 13), 10);
+        Cv2.GaussianBlur(darkPupilImage, gaussianBlurDark, new Size(7, 7), 1);
 
-        //while (currentAttempt < maxAttempts)
-        //{
-        //    currentAttempt++;
-        //    // 第一步：创建暗瞳孔的二进制掩码
-        //    binaryDarkPupil = new Mat();
-        //    Cv2.AdaptiveThreshold(gaussianBlurDark, binaryDarkPupil, 255,
-        //                     AdaptiveThresholdTypes.MeanC,
-        //                     ThresholdTypes.BinaryInv, newBlockSize, newC);
-        //    double blackArea = Cv2.CountNonZero(binaryDarkPupil);
-        //    if (blackArea >= 67)
-        //    {
-        //        if (blackArea <= 87)
-        //        {
-        //            break;
-        //        }
-        //        else
-        //        {
-        //            newC += 4;
-        //        }
+        while (currentAttempt < maxAttempts)
+        {
+            currentAttempt++;
+            // 第一步：创建暗瞳孔的二进制掩码
+            binaryDarkPupil = new Mat();
+            Cv2.AdaptiveThreshold(gaussianBlurDark, binaryDarkPupil, 255,
+                             AdaptiveThresholdTypes.MeanC,
+                             ThresholdTypes.BinaryInv, newBlockSize, newC);
+            double blackArea = Cv2.CountNonZero(binaryDarkPupil);
+            //string windowName = "Pupil Detection (Press ESC to close)";
+            //Cv2.NamedWindow(windowName, WindowFlags.Normal);
+            //Cv2.ResizeWindow(windowName, 1200, 800);
+            //using var resizedImage = new Mat();
+            //Cv2.Resize(binaryDarkPupil, resizedImage, new Size(0, 0), fx: 2.0, fy: 2.0, InterpolationFlags.Linear);
+            //Cv2.ImShow(windowName, resizedImage);
+            //Cv2.WaitKey(0);
+            if (blackArea >= 20)
+            {
+                if (blackArea <= 87)
+                {
+                    break;
+                }
+                else
+                {
+                    newC += 3;
+                }
 
-        //    }
-        //    else
-        //    {
-        //        newC -= 5;
-        //    }
-        //}
+            }
+            else
+            {
+                newC -= 2;
+            }
+        }
 
         while (currentAttempt < maxAttempts)
         {
             currentAttempt++;
 
-            // 1. 检测并标记反光点（高亮区域）
-            Mat mask = new Mat();
-            Cv2.Threshold(lightPupilImage, mask, 220, 255, ThresholdTypes.Binary); // 250为亮度阈值，可根据实际情况调整
+            //// 1. 检测并标记反光点（高亮区域）
+            //Mat mask = new Mat();
+            //Cv2.Threshold(lightPupilImage, mask, 250, 255, ThresholdTypes.Binary); // 250为亮度阈值，可根据实际情况调整
 
-            // 2. 对暗瞳孔图像也进行同样处理（确保一致性）
-            Mat maskDark = new Mat();
-            Cv2.Threshold(darkPupilImage, maskDark, 220, 255, ThresholdTypes.Binary);
+            //// 2. 对暗瞳孔图像也进行同样处理（确保一致性）
+            //Mat maskDark = new Mat();
+            //Cv2.Threshold(darkPupilImage, maskDark, 250, 255, ThresholdTypes.Binary);
 
-            // 3. 合并两个掩模
-            Cv2.BitwiseOr(mask, maskDark, mask);
+            //// 3. 合并两个掩模
+            //Cv2.BitwiseOr(mask, maskDark, mask);
 
-            // 4. 对掩模进行膨胀操作，确保覆盖整个反光区域
-            Cv2.Dilate(mask, mask, Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(5, 5)));
+            //// 4. 对掩模进行膨胀操作，确保覆盖整个反光区域
+            //Cv2.Dilate(mask, mask, Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(5, 5)));
 
-            // 5. 使用邻域均值填充反光区域
-            Mat inpaintedLight = new Mat();
-            Cv2.Inpaint(lightPupilImage, mask, inpaintedLight, 3, InpaintMethod.NS);
+            //// 5. 使用邻域均值填充反光区域
+            //Mat inpaintedLight = new Mat();
+            //Cv2.Inpaint(lightPupilImage, mask, inpaintedLight, 3, InpaintMethod.NS);
 
-            Mat inpaintedDark = new Mat();
-            Cv2.Inpaint(darkPupilImage, mask, inpaintedDark, 3, InpaintMethod.NS);
+            //Mat inpaintedDark = new Mat();
+            //Cv2.Inpaint(darkPupilImage, mask, inpaintedDark, 3, InpaintMethod.NS);
 
-            // 6. 现在可以安全地进行加权相加
-            Cv2.AddWeighted(inpaintedLight, 1.0, inpaintedDark, darkWeight, 0, diff_pre);
+            //// 6. 现在可以安全地进行加权相加
+            //Cv2.AddWeighted(inpaintedLight, 1.0, inpaintedDark, darkWeight, 0, diff_pre);
 
             // 第二步：加权混合图像
-            //Cv2.AddWeighted(lightPupilImage, 1.0, darkPupilImage, darkWeight, 0, diff_pre);
+            Cv2.AddWeighted(lightPupilImage, 1.0, darkPupilImage, darkWeight, 0, diff_pre);
 
-            //// 第三步：与暗瞳孔掩码进行与运算
-            //Cv2.BitwiseAnd(diff_pre, binaryDarkPupil, diff_sec);
+            // 第三步：与暗瞳孔掩码进行与运算
+            Cv2.BitwiseAnd(diff_pre, binaryDarkPupil, diff_sec);
 
             // 第四步：高斯模糊和二值化
             Cv2.GaussianBlur(diff_pre, diff_sec, new Size(7, 7), 1);
@@ -125,7 +290,7 @@ public class FastPupilDetector
                 }
                 else
                 {
-                    threshold_v += Math.Min(6, (int)((whiteArea / maxWhiteArea) * 3));
+                    threshold_v += Math.Min(3, (int)((whiteArea / maxWhiteArea) * 3));
                     //darkWeight -= 0.02;
                 }
             }
@@ -133,7 +298,7 @@ public class FastPupilDetector
             {
                 // 调整权重（增加绝对值，使暗区域影响更大）
                 //darkWeight += 0.1;  // 每次调整0.1的步长
-                threshold_v -= Math.Min(7, (int)(minWhiteArea / whiteArea * 3));
+                threshold_v -= Math.Min(4, (int)(minWhiteArea / whiteArea * 3));
                 if (threshold_v <= 0) threshold_v = 1;
             }
         }
@@ -227,7 +392,7 @@ public class FastPupilDetector
             try
             {
                 // 1. 取面积最大的有效轮廓（过滤掉过小的轮廓）
-                const double minContourArea = 50.0; // 根据实际场景调整最小面积阈值
+                const double minContourArea = 10.0; // 根据实际场景调整最小面积阈值
                 var validContours = contours.Where(c => Cv2.ContourArea(c) > minContourArea);
 
                 if (validContours.Any())
@@ -252,7 +417,7 @@ public class FastPupilDetector
 
                             // 4. 动态修正圆心（增加修正限制）
                             const double minAxisRatioForCorrection = 0.8;
-                            const double maxCorrectionOffset = 10.0; // 最大修正偏移量
+                            const double maxCorrectionOffset = 1.0; // 最大修正偏移量  //10
 
                             if (axisRatio < minAxisRatioForCorrection)
                             {
@@ -270,14 +435,14 @@ public class FastPupilDetector
                             }
 
                             // 5. 可视化（增加注释和样式区分）
-                            // 绘制轮廓（蓝色，2px宽）
-                            Cv2.DrawContours(result, new[] { maxContour }, -1, new Scalar(255, 0, 0), 2);
+                            // 绘制轮廓（蓝色，1px宽）
+                            Cv2.DrawContours(result, new[] { maxContour }, -1, new Scalar(255, 0, 0), 1);
 
                             // 绘制拟合椭圆（黄色虚线）
                             Cv2.Ellipse(result, fittedEllipse, new Scalar(0, 255, 255), 1, LineTypes.Link4);
 
-                            // 绘制修正后的圆心（绿色实心点，3px半径）
-                            Cv2.Circle(result, pupilCenter, 3, new Scalar(0, 255, 0), -1);
+                            // 绘制修正后的圆心（绿色实心点，1px半径）
+                            Cv2.Circle(result, pupilCenter, 1, new Scalar(0, 255, 0), -1);
 
                             // 可选：绘制原始最小外接圆（红色虚线，1px宽）
                             Cv2.MinEnclosingCircle(maxContour, out var circleCenter, out var circleRadius);
@@ -712,5 +877,18 @@ public class FastPupilDetector
     private bool IsPointInImage(Point p, Mat img)
     {
         return p.X >= 0 && p.Y >= 0 && p.X < img.Width && p.Y < img.Height;
+    }
+
+    private void DebugMat (Mat binary)
+    {
+        string windowName = "Pupil Detection (Press ESC to close)";
+        Cv2.NamedWindow(windowName, WindowFlags.Normal);
+        Cv2.ResizeWindow(windowName, 1200, 800);
+        using var resizedImage = new Mat();
+        Cv2.Resize(binary, resizedImage, new Size(0, 0), fx: 2.0, fy: 2.0, InterpolationFlags.Linear);
+        Cv2.ImShow(windowName, resizedImage);
+        // 按ESC退出
+        while (Cv2.WaitKey(10) != 27) { }
+        Cv2.DestroyWindow(windowName);
     }
 }

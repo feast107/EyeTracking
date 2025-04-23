@@ -43,7 +43,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         //        OnPropertyChanged(nameof(AlgFps));
         //    }
         //});
-        var interval = 60;
+        var interval = 180;
         _timer = new System.Timers.Timer(16);  // ~60Hz
         _timer.Elapsed += (s, e) =>
             {
@@ -52,7 +52,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
 
             if (interval-- <= 0)
             {
-                interval = 60;
+                interval = 180;
                 OnPropertyChanged(nameof(Fps));
                 OnPropertyChanged(nameof(AlgFps));
             }
@@ -507,6 +507,7 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
                 //CopyCost = cost.ElapsedMilliseconds;
                 if (EnableSave) mat.SaveImage((FilePath)SavePath / DateTimeOffset.Now.Ticks.ToString() + ".png");
                 if (EnableDetect) Detect(mat);
+                Cv2.Flip(mat, mat, FlipMode.Y);
                 Origin = mat.ToWriteableBitmap();
             });
             var input = doubleBuffer.CreateInput();

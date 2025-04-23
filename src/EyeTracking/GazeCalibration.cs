@@ -13,7 +13,7 @@ namespace EyeTracking
         private double _lastY = 540;
         private readonly Vector<double> _coefficientsX;
         private readonly Vector<double> _coefficientsY;
-        private const double RegularizationLambda = 1e-6;
+        private const double RegularizationLambda = 1e-5; // 1e-6
 
         private EyeStabilizer stabilizer = new EyeStabilizer(
             medianWindowSize: 3,   // 中值窗口大小
@@ -91,8 +91,21 @@ namespace EyeTracking
         {
             // 1. 原始坐标计算（保持原有逻辑）
             var features = new[] { deltaX, deltaY, deltaX * deltaY, deltaX * deltaX, deltaY * deltaY, 1 };
-            double rawX = Math.Clamp(_coefficientsX.Zip(features, (c, f) => c * f).Sum(), 70, 1850);
-            double rawY = Math.Clamp(_coefficientsY.Zip(features, (c, f) => c * f).Sum(), 70, 1000);
+            // 更新特征计算，增加三次项
+            //var features = new[] {
+            //    deltaX,                         // Δx
+            //    deltaY,                         // Δy
+            //    deltaX * deltaY,                // ΔxΔy
+            //    deltaX * deltaX,               // Δx²
+            //    deltaY * deltaY,                // Δy²
+            //    deltaX * deltaX * deltaY,      // Δx²Δy
+            //    deltaX * deltaY * deltaY,      // ΔxΔy²
+            //    deltaX * deltaX * deltaX,      // Δx³
+            //    deltaY * deltaY * deltaY,      // Δy³
+            //    1                              // Intercept
+            //};
+            double rawX = Math.Clamp(_coefficientsX.Zip(features, (c, f) => c * f).Sum(), 10, 1910);
+            double rawY = Math.Clamp(_coefficientsY.Zip(features, (c, f) => c * f).Sum(), 10, 1070);
 
             // 2. 动态抖动检测
             double instantVelocity = (_lastX == 0 && _lastY == 0) ? 0 :

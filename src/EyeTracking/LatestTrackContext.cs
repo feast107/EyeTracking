@@ -48,7 +48,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     private FastPupilDetector detector = new FastPupilDetector();
     private bool? isLastLight;
 
-    private          Rect[] p_eyes           = new Rect[2];
+    private Rect[] p_eyes = new Rect[2];
     private readonly Rect[] last_this_center = new Rect[2];
 
     private static readonly string XmlPath =
@@ -127,11 +127,12 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                 last_this_center[0] = last_this_center[1];
 
                 var dynamicThreshold = CalculateDynamicThreshold(thisMat, last_this_center[1]);
-                var brightnessDiff   = Math.Abs(s[0] - n[0]);
+                var brightnessDiff = Math.Abs(s[0] - n[0]);
 
                 if (brightnessDiff > dynamicThreshold)
                 {
                     isLastLight = s[0] > n[0];
+                    //调试
                     var dark = isLastLight.Value ? LastMat : thisMat;
                     var light = isLastLight.Value ? thisMat : LastMat;
                     if (DetectPupil(light, dark))
@@ -139,11 +140,17 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                         if (DetectReflection(light))
                         {
                             Stats.SuccessFrames++;
-                            using var lightEyeMat      = new Mat(light, p_eyes[0]);
-                            using var darkEyeMat       = new Mat(dark, p_eyes[0]);
+                            using var lightEyeMat = new Mat(light, p_eyes[0]);
+                            using var darkEyeMat = new Mat(dark, p_eyes[0]);
+                            using var right_lightEyeMat = new Mat(light, p_eyes[1]);
+                            using var right_darkEyeMat = new Mat(dark, p_eyes[1]);
+
                             using var lightEyeOriginal = lightEyeMat.Clone();
-                            using var darkEyeOriginal  = darkEyeMat.Clone();
-                            var       leftCenter       = (Point)Result.LeftEyeCenter;
+                            using var darkEyeOriginal = darkEyeMat.Clone();
+                            using var right_lightEyeOriginal = right_lightEyeMat.Clone();
+                            using var right_darkEyeOriginal = right_darkEyeMat.Clone();
+
+                            var leftCenter = (Point)Result.LeftEyeCenter;
 
                             var leftEyeCenterInSub = new Point(
                                 leftCenter.X - p_eyes[0].X,
@@ -154,21 +161,14 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                                 Result.Left.Y + leftEyeCenterInSub.Y
                             );
 
-                            //Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(darkEyeMat, leftPointInSub, 1, Scalar.Green, -1);
                             Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.Green, -1);
                             Cv2.Circle(darkEyeMat, leftEyeCenterInSub, 1, Scalar.White, -1);
-                            //Cv2.Circle(lightEyeMat, leftPointInSub, 1, Scalar.White, -1);
+                            Cv2.Circle(lightEyeMat, leftEyeCenterInSub, 1, Scalar.White, -1);
 
                             //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
                             //    Stats.TotalFrames);
 
-                            Debug(DebugHint.Subtraction, lightEyeMat);
-                            Debug(DebugHint.Output, darkEyeMat);
-
-                            using var right_lightEyeMat = new Mat(light, p_eyes[1]);
-                            using var right_darkEyeMat = new Mat(dark, p_eyes[1]);
-                            using var right_lightEyeOriginal = right_lightEyeMat.Clone();
-                            using var right_darkEyeOriginal = right_darkEyeMat.Clone();
                             var right_Center = (Point)Result.RightEyeCenter;
 
                             var right_EyeCenterInSub = new Point(
@@ -180,14 +180,16 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                                 Result.Right.Y + right_EyeCenterInSub.Y
                             );
 
-                            //Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.Green, -1);
+                            Cv2.Circle(right_darkEyeMat, right_PointInSub, 1, Scalar.Green, -1);
                             Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.Green, -1);
                             Cv2.Circle(right_darkEyeMat, right_EyeCenterInSub, 1, Scalar.White, -1);
-                            //Cv2.Circle(right_lightEyeMat, right_PointInSub, 1, Scalar.White, -1);
+                            Cv2.Circle(right_lightEyeMat, right_EyeCenterInSub, 1, Scalar.White, -1);
 
                             //SaveProcessedEyeImages(lightEyeMat, darkEyeMat, lightEyeOriginal, darkEyeOriginal,
                             //    Stats.TotalFrames);
 
+                            Debug(DebugHint.Subtraction, lightEyeMat);
+                            Debug(DebugHint.Output, darkEyeMat);
                             Debug(DebugHint.Debug_right_light, right_lightEyeMat);
                             Debug(DebugHint.Debug_right_dark, right_darkEyeMat);
 
@@ -201,27 +203,27 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                 }
             }
 
-            Trace(0, "总共处理" + Stats.TotalFrames * 2);
+            Trace(0, "总共处理" + Stats.TotalFrames);
             Trace((KeyedEyeDetectTrace.TraceKey)99, "成功" + Stats.SuccessFrames);
             Trace((KeyedEyeDetectTrace.TraceKey)1, "眼睛异常" + Stats.NoEyesDetectedCount);
             Trace((KeyedEyeDetectTrace.TraceKey)5, "无眼睛" + Stats.NoEyesDetectedCount2);
             Trace((KeyedEyeDetectTrace.TraceKey)2, "明暗异常" + Stats.NoCheckLightCount);
             Trace((KeyedEyeDetectTrace.TraceKey)3, "瞳孔异常（总*2）" + Stats.NoPuilpDetectedCount);
-            Trace((KeyedEyeDetectTrace.TraceKey)4, "亮斑异常（总*2）" + Stats.NoReflectionDetectedCount);
+            Trace((KeyedEyeDetectTrace.TraceKey)4, "双亮斑异常" + Stats.NoReflectionDetectedCount);
         }
         else
         {
             if (DetectEyes(thisMat, last_this_center, 0))
             {
                 LastMat = thisMat;
-                result  = Result;
+                result = Result;
                 return;
             }
         }
 
         LastMat?.Dispose();
         LastMat = null;
-        result  = Result;
+        result = Result;
     }
 
     //
@@ -261,65 +263,6 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     }
     private bool DetectEyes(Mat image, Rect[] middleEye, int i)
     {
-#if (false)
-        // 1. 人脸检测增强参数
-        var facesFront = FrontFaceCascade.DetectMultiScale(
-            image,
-            1.05,  // 更保守的缩放因子
-            5,     // 更高的邻居阈值
-            HaarDetectionTypes.DoRoughSearch | HaarDetectionTypes.ScaleImage,
-            new Size(70, 70)//,  // 最小人脸尺寸
-            //new Size(300, 300)   // 最大人脸尺寸
-        );
-
-        if (facesFront.Length == 0) return false;
-
-        // 2. 精确的眼部区域计算
-        var faceRect = facesFront[0];
-
-        // 眼部区域参数（基于解剖学比例）
-        float eyeRegionTopRatio = 0.27f;    // 从脸部顶部开始
-        float eyeRegionHeightRatio = 0.20f; // 眼睛区域高度
-        float leftEyeStartRatio = 0.15f;     // 左眼起始位置
-        float eyeWidthRatio = 0.30f;         // 单眼宽度
-        //float eyeRegionTopRatio = 0.30f;    // 从脸部顶部开始
-        //float eyeRegionHeightRatio = 0.15f; // 眼睛区域高度
-        //float leftEyeStartRatio = 0.20f;     // 左眼起始位置
-        //float eyeWidthRatio = 0.30f;         // 单眼宽度
-
-        // 3. 计算眼部ROI（Region of Interest）
-        var eyeRegionTop = faceRect.Y + (int)(faceRect.Height * eyeRegionTopRatio);
-        var eyeRegionHeight = (int)(faceRect.Height * eyeRegionHeightRatio);
-
-        // 左眼区域（避开鼻梁）
-        var leftEyeRect = new Rect(
-            faceRect.X + (int)(faceRect.Width * leftEyeStartRatio),
-            eyeRegionTop,
-            (int)(faceRect.Width * eyeWidthRatio),
-            eyeRegionHeight
-        );
-
-        // 右眼区域（对称计算）
-        var rightEyeRect = new Rect(
-            faceRect.X + (int)(faceRect.Width * (1 - leftEyeStartRatio - eyeWidthRatio)),
-            eyeRegionTop,
-            (int)(faceRect.Width * eyeWidthRatio),
-            eyeRegionHeight
-        );
-
-        // 4. 边界安全检查
-        leftEyeRect = ClampRect(image, leftEyeRect);
-        rightEyeRect = ClampRect(image, rightEyeRect);
-
-        // 5. 二次验证（通过眼部分类器确认）
-        //if (EyeCascade != null)
-        //{
-        //    leftEyeRect = ValidateEyeRegion(image, leftEyeRect);
-        //    rightEyeRect = ValidateEyeRegion(image, rightEyeRect);
-        //}
-
-        p_eyes = new[] { leftEyeRect, rightEyeRect };
-#else
         //使用属性获取已加载的分类器
         var facesFront = FrontFaceCascade.DetectMultiScale(
             image, 1.1, 3,
@@ -331,13 +274,13 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         {
             // 在人脸区域内检测眼睛
             var faceRect = facesFront[0];
-            var eyeRegionHeight = faceRect.Height / 4;
-            var eyeRegionWidth = faceRect.Width / 3;
-            var eyeRegionTop = faceRect.Y + faceRect.Height / 4;
+            var eyeRegionHeight = (int)(faceRect.Height / 5.7);
+            var eyeRegionWidth = (int)(faceRect.Width / 4.3);
+            var eyeRegionTop = (int)(faceRect.Y + faceRect.Height / 3.7);
 
             // 左眼区域
             var leftEyeRect = new Rect(
-                faceRect.X + faceRect.Width / 6,
+                (int)(faceRect.X + faceRect.Width / 5.2),
                 eyeRegionTop,
                 eyeRegionWidth,
                 eyeRegionHeight
@@ -345,7 +288,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
             // 右眼区域
             var rightEyeRect = new Rect(
-                faceRect.X + faceRect.Width / 2,
+                (int)(faceRect.X + faceRect.Width / 1.7),
                 eyeRegionTop,
                 eyeRegionWidth,
                 eyeRegionHeight
@@ -370,133 +313,79 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         }
         else
         {
-            // 尝试侧面人脸检测
-            var facesProfile = ProfileFaceCascade.DetectMultiScale(
-                image, 1.1, 3,
+            // 如果人脸检测失败，尝试直接检测眼睛
+            var eyes = EyeCascade.DetectMultiScale(
+                image, 1.05, 3,
                 HaarDetectionTypes.ScaleImage,
-                new Size(150, 150)
+                new Size(40, 40)
             );
 
-            if (facesProfile.Length > 0)
+            if (eyes.Length < 2)
             {
-                // 使用相同的眼睛区域提取逻辑
-                var faceRect = facesProfile[0];
-                var eyeRegionHeight = faceRect.Height / 3;
-                var eyeRegionWidth = faceRect.Width / 3;
-                var eyeRegionTop = faceRect.Y + faceRect.Height / 4;
-
-                // 根据侧脸调整眼睛位置
-                var eyeRect = new Rect(
-                    faceRect.X + faceRect.Width / 4,
-                    eyeRegionTop,
-                    eyeRegionWidth,
-                    eyeRegionHeight
-                );
-
-                // 确保矩形在图像范围内
-                eyeRect = new Rect(
-                    Math.Max(0, eyeRect.X),
-                    Math.Max(0, eyeRect.Y),
-                    Math.Min(image.Cols - eyeRect.X, eyeRect.Width),
-                    Math.Min(image.Rows - eyeRect.Y, eyeRect.Height)
-                );
-
-                // 在眼睛区域内进行眼睛检测
-                var eyes = EyeCascade.DetectMultiScale(
-                    new Mat(image, eyeRect),
-                    1.05, 6,
-                    HaarDetectionTypes.ScaleImage,
-                    new Size(40, 40)
-                );
-
-                if (eyes.Length >= 1)
-                {
-                    p_eyes = new[]
-                        { new Rect(eyeRect.X + eyes[0].X, eyeRect.Y + eyes[0].Y, eyes[0].Width, eyes[0].Height) };
-                }
-                else
-                {
-                    Stats.NoEyesDetectedCount2++;
-                    return false;
-                }
+                Stats.NoEyesDetectedCount2++;
+                return false;
             }
-            else
+
+            // 验证眼睛
+            var validatedEyes = new List<Rect>();
+            foreach (var eye in eyes.OrderBy(e => e.X))
             {
-                // 如果人脸检测失败，尝试直接检测眼睛
-                var eyes = EyeCascade.DetectMultiScale(
-                    image, 1.05, 6,
-                    HaarDetectionTypes.ScaleImage,
-                    new Size(40, 40)
-                );
+                // 验证宽高比
+                var aspectRatio = (float)eye.Width / eye.Height;
+                if (aspectRatio is < 0.4f or > 2.5f) continue;
 
-                if (eyes.Length < 2)
-                {
-                    Stats.NoEyesDetectedCount2++;
-                    return false;
-                }
+                // 验证区域大小相对于图像
+                var relativeSize = (float)(eye.Width * eye.Height) / (image.Rows * image.Cols);
+                if (relativeSize is < 0.01f or > 0.15f) continue;
 
-                // 验证眼睛
-                var validatedEyes = new List<Rect>();
-                foreach (var eye in eyes.OrderBy(e => e.X))
-                {
-                    // 验证宽高比
-                    var aspectRatio = (float)eye.Width / eye.Height;
-                    if (aspectRatio is < 0.4f or > 2.5f) continue;
-
-                    // 验证区域大小相对于图像
-                    var relativeSize = (float)(eye.Width * eye.Height) / (image.Rows * image.Cols);
-                    if (relativeSize is < 0.01f or > 0.15f) continue;
-
-                    validatedEyes.Add(eye);
-                }
-
-                if (validatedEyes.Count < 2)
-                {
-                    Stats.NoEyesDetectedCount++;
-                    return false;
-                }
-
-                // 验证两个眼睛的相对位置和大小
-                var left = validatedEyes[0];
-                var right = validatedEyes[1];
-
-                // 验证水平距离
-                float distance = right.X - (left.X + left.Width);
-                if (distance < 0)
-                {
-                    Stats.NoEyesDetectedCount++;
-                    return false;
-                }
-
-                // 验证大小相似性
-                var sizeRatio = (float)(left.Width * left.Height) / (right.Width * right.Height);
-                if (sizeRatio is < 0.5f or > 2.0f)
-                {
-                    Stats.NoEyesDetectedCount++;
-                    return false;
-                }
-
-                // 验证垂直位置相似性
-                float verticalDiff = Math.Abs(left.Y - right.Y);
-                if (verticalDiff > left.Height)
-                {
-                    Stats.NoEyesDetectedCount++;
-                    return false;
-                }
-
-                p_eyes = [left, right];
+                validatedEyes.Add(eye);
             }
+
+            if (validatedEyes.Count < 2)
+            {
+                Stats.NoEyesDetectedCount++;
+                return false;
+            }
+
+            // 验证两个眼睛的相对位置和大小
+            var left = validatedEyes[0];
+            var right = validatedEyes[1];
+
+            // 验证水平距离
+            float distance = right.X - (left.X + left.Width);
+            if (distance < 0)
+            {
+                Stats.NoEyesDetectedCount++;
+                return false;
+            }
+
+            // 验证大小相似性
+            var sizeRatio = (float)(left.Width * left.Height) / (right.Width * right.Height);
+            if (sizeRatio is < 0.5f or > 2.0f)
+            {
+                Stats.NoEyesDetectedCount++;
+                return false;
+            }
+
+            // 验证垂直位置相似性
+            float verticalDiff = Math.Abs(left.Y - right.Y);
+            if (verticalDiff > left.Height)
+            {
+                Stats.NoEyesDetectedCount++;
+                return false;
+            }
+
+            p_eyes = [left, right];
         }
-#endif
 
         // 计算中间区域
         if (p_eyes.Length >= 2)
         {
             var center1 = new Point(p_eyes[0].X + p_eyes[0].Width / 2, p_eyes[0].Y + p_eyes[0].Height / 2);
             var center2 = new Point(p_eyes[1].X + p_eyes[1].Width / 2, p_eyes[1].Y + p_eyes[1].Height / 2);
-            var center  = new Point((center1.X + center2.X) / 2, (center1.Y + center2.Y) / 2);
+            var center = new Point((center1.X + center2.X) / 2, (center1.Y + center2.Y) / 2);
 
-            var size    = Math.Max(p_eyes[0].Width, p_eyes[1].Width);
+            var size = Math.Max(p_eyes[0].Width, p_eyes[1].Width);
             var newSize = new Size(size, size);
             var topLeft = new Point(center.X - newSize.Width / 2, center.Y - newSize.Height / 2);
 
@@ -676,12 +565,12 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
                 (p_eyes[1].Y + rightPupil.Y) * (1 - smooth) + righteyecenter.Y * smooth);
         }
 
-            // 添加保存图像的代码
+        // 添加保存图像的代码
 
-            return true;
+        return true;
     }
 
-    private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye, 
+    private void SaveProcessedEyeImages(Mat leftEye, Mat rightEye,
                                         Mat leftEyeOriginal, Mat rightEyeOriginal,
                                         long frameNumber)
     {
@@ -690,17 +579,17 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         try
         {
             // 创建保存目录
-            var leftEyeDir  = Path.Combine(Parameters.ImageSavePath, "Bright_Pupil");
+            var leftEyeDir = Path.Combine(Parameters.ImageSavePath, "Bright_Pupil");
             var rightEyeDir = Path.Combine(Parameters.ImageSavePath, "Dark_Pupil");
 
             // 确保目录存在
             Directory.CreateDirectory(leftEyeDir);
             Directory.CreateDirectory(rightEyeDir);
             // 获取坐标信息
-            var leftPupilCenter  = Result.LeftEyeCenter  ?? new Point(0, 0);
+            var leftPupilCenter = Result.LeftEyeCenter ?? new Point(0, 0);
             var rightPupilCenter = Result.RightEyeCenter ?? new Point(0, 0);
-            var leftReflection   = Result.Left;
-            var rightReflection  = Result.Right;
+            var leftReflection = Result.Left;
+            var rightReflection = Result.Right;
             // 生成包含坐标信息的文件名
             var leftCoordInfo =
                 $"_P{leftPupilCenter.X:F0}_{leftPupilCenter.Y:F0}_R{leftReflection.X:F0}_{leftReflection.Y:F0}";
@@ -744,7 +633,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
     // 对眼睛区域进行处理（最大值滤波 + 中值滤波）
     private static Mat ProcessEyeArea(Mat eye, int maxFilterSize, int medianFilterSize)
     {
-        maxFilterSize    = maxFilterSize    % 2 == 0 ? maxFilterSize    + 1 : maxFilterSize;
+        maxFilterSize = maxFilterSize % 2 == 0 ? maxFilterSize + 1 : maxFilterSize;
         medianFilterSize = medianFilterSize % 2 == 0 ? medianFilterSize + 1 : medianFilterSize;
 
         using var kernel = Cv2.GetStructuringElement(
@@ -753,7 +642,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
         );
 
         // 使用 using 语句管理资源
-        using var maxFiltered    = new Mat();
+        using var maxFiltered = new Mat();
         using var medianFiltered = new Mat();
 
         // 直接在目标Mat上操作
@@ -792,7 +681,6 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
         if (contours.Length == 0)
         {
-            Stats.NoReflectionDetectedCount++;
             return false;
         }
 
@@ -805,10 +693,10 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
             var cx = m.M10 / m.M00;
             var cy = m.M01 / m.M00;
             var absoluteCenter = new Point(eyeRect.X + cx, eyeRect.Y + cy);
-        
+
             // 计算与瞳孔中心的距离
             var distance = Math.Sqrt(
-                Math.Pow(absoluteCenter.X - pupilCenter.X, 2) + 
+                Math.Pow(absoluteCenter.X - pupilCenter.X, 2) +
                 Math.Pow(absoluteCenter.Y - pupilCenter.Y, 2));
 
             brightSpots.Add(new BrightSpot(absoluteCenter, Cv2.ContourArea(contour), distance));
@@ -818,6 +706,7 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
         // 选择距离瞳孔中心最近的亮斑
         var closestSpot = brightSpots.OrderBy(spot => spot.DistanceToPupil).First();
+
         output = closestSpot.Center;
         return true;
     }
@@ -825,80 +714,58 @@ public class LatestTrackContext : EyeTrackContext<EyeDetectResult>
 
     // 反射点检测功能实现
     private bool DetectReflection(Mat light_image)
-{
-    if (p_eyes.Length != 2)
-        return false;
-    p_eyes = p_eyes.OrderBy(x => x.X).ToArray();
-
-    using var leftEye = light_image.SubMat(p_eyes[0]);
-    using var rightEye = light_image.SubMat(p_eyes[1]);
-    using var resultLeft = ProcessEyeArea(leftEye, 3, 3);
-    using var resultRight = ProcessEyeArea(rightEye, 3, 3);
-
-    var leftCenter = Result.LeftEyeCenter;
-    if (leftCenter != null && ExtractBrightSpotCenter(resultLeft, p_eyes[0], leftCenter.Value, out var left))
     {
-        var cur = new Point(
-            left!.Value.X - leftCenter.Value.X,
-            left.Value.Y - leftCenter.Value.Y);
-        if (!(cur.X is 0 && cur.Y is 0))
-            Result.Left = cur;
-    }
-    else
-    {
-        Stats.NoReflectionDetectedCount++;
-        return false;
+        if (p_eyes.Length != 2)
+            return false;
+        p_eyes = p_eyes.OrderBy(x => x.X).ToArray();
+
+        using var leftEye = light_image.SubMat(p_eyes[0]);
+        using var rightEye = light_image.SubMat(p_eyes[1]);
+        using var resultLeft = ProcessEyeArea(leftEye, 3, 3);
+        using var resultRight = ProcessEyeArea(rightEye, 3, 3);
+        bool ret1 = true;
+        bool ret2 = true;
+
+        var leftCenter = Result.LeftEyeCenter;
+        var rightCenter = Result.RightEyeCenter;
+
+        if (leftCenter == null || rightCenter == null) return false;
+        ret1 = ExtractBrightSpotCenter(resultLeft, p_eyes[0], leftCenter.Value, out var left);
+        ret2 = ExtractBrightSpotCenter(resultRight, p_eyes[1], rightCenter.Value, out var right);
+        if (ret1)
+        {
+            var cur = new Point(
+                left!.Value.X - leftCenter.Value.X,
+                left.Value.Y - leftCenter.Value.Y);
+            if (!(cur.X is 0 && cur.Y is 0))
+                if (cur.Y < 7 && cur.X < 7 && cur.X > -7)
+                    Result.Left = cur;
+        }
+
+        if (ret2)
+        {
+            var cur = new Point(
+                right!.Value.X - rightCenter.Value.X,
+                right.Value.Y - rightCenter.Value.Y);
+            if (!(cur.X is 0 && cur.Y is 0))
+                if (cur.Y < 7 && cur.X < 7 && cur.X > -7)
+                    Result.Right = cur;
+        }
+
+        if (!ret1 && !ret2)
+        {
+            Stats.NoReflectionDetectedCount++;
+            return true;
+        }
+
+        return true;
     }
 
-    var rightCenter = Result.RightEyeCenter;
-    if (rightCenter != null && ExtractBrightSpotCenter(resultRight, p_eyes[1], rightCenter.Value, out var right))
+    public class EyeTrack : EyeTrackContext<Point>
     {
-        var cur = new Point(
-            right!.Value.X - rightCenter.Value.X,
-            right.Value.Y - rightCenter.Value.Y);
-        if (!(cur.X is 0 && cur.Y is 0))
-            Result.Right = cur;
+        public override void DetectSight(Mat thisMat, out Point result)
+        {
+            throw new NotImplementedException();
+        }
     }
-    else
-    {
-        Stats.NoReflectionDetectedCount++;
-        return false;
-    }
-
-    return true;
 }
-
-public class EyeTrack : EyeTrackContext<Point>
-{
-    public override void DetectSight(Mat thisMat, out Point result)
-    {
-        throw new NotImplementedException();
-    }
-}
-} // namespace EyeTracking end
-
-
-//public class Demo {
-
-
-//    public int main() {
-//        Funct fun = new Func2();
-//        fun.Calculate(1);
-//    }
-
-
-//    public abstract class Funct {
-//        public abstract int Calculate(int arg);
-//    }
-
-
-//    public class Fun1 : Funct
-//    {
-//        public override int Calculate(int arg) => arg * arg + 2 * arg + 1;
-//    }
-
-//    public class Func2 : Funct
-//    {
-//        public override int Calculate(int arg) => 1 / arg;
-//     }
-//}
