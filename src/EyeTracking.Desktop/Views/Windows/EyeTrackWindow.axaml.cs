@@ -72,11 +72,39 @@ public partial class EyeTrackWindow : Window
                         var point = vm.MousePos;
                         Dispatcher.UIThread.Invoke(() =>
                         {
-                            var p = Canvas.PointToClient(new PixelPoint(point.X, point.Y));
-                            Canvas.SetLeft(mouse, p.X - mouse.Width  / 2);
-                            Canvas.SetTop(mouse, p.Y  - mouse.Height / 2);
-                            //mouse.Fill();
-                            vm.CanvasPos = p;
+                            try
+                            {
+                                // 验证坐标值是否有效
+                                if (!IsValidPoint(point))
+                                {
+                                    return;
+                                }
+
+                                var p = Canvas.PointToClient(new PixelPoint(point.X, point.Y));
+
+                                // 验证转换后的坐标
+                                if (double.IsNaN(p.X) || double.IsNaN(p.Y))
+                                {
+                                    return;
+                                }
+
+                                // 计算并设置鼠标位置
+                                double left = p.X - mouse.Width / 2;
+                                double top = p.Y - mouse.Height / 2;
+
+                                // 确保值在合理范围内
+                                left = Math.Max(0, Math.Min(left, Canvas.Bounds.Width - mouse.Width));
+                                top = Math.Max(0, Math.Min(top, Canvas.Bounds.Height - mouse.Height));
+
+                                Canvas.SetLeft(mouse, left);
+                                Canvas.SetTop(mouse, top);
+                                vm.CanvasPos = p;
+                            }
+                            catch (Exception ex)
+                            {
+                                // 记录错误但不中断程序
+                                Debug.WriteLine($"Error updating mouse position: {ex.Message}");
+                            }
                         });
                         break;
                     case nameof(EyeTrackViewModel.RightEyeVector):
@@ -283,18 +311,40 @@ public partial class EyeTrackWindow : Window
             // 动画循环
             while (!cancellationToken.IsCancellationRequested)
             {
+                double targetX;
+                double targetY;
                 // 获取最新数据
                 var left = vm.LeftGazeCalibration.CalculateGazePoint(
                     vm.LeftEyeVector.X, vm.LeftEyeVector.Y);
                 var right = vm.RightGazeCalibration.CalculateGazePoint(
                     vm.RightEyeVector.X, vm.RightEyeVector.Y);
 
-                // 计算目标位置（带随机气泡偏移）
-                var random = new Random();
-                var targetX = (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2;
-                             //+ (random.NextDouble() - 0.5) * 6;
-                var targetY = (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2;
-                             //+ (random.NextDouble() - 0.5) * 6;
+                // 计算目标位置
+                if (left.screenX == 0 && left.screenY == 0)
+                {
+                    if (right.screenX == 0 && right.screenY == 0)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        targetX = right.screenX - LeftPosition.Width / 2;
+                        targetY = right.screenY - LeftPosition.Height / 2;
+                    }
+                }
+                else
+                {
+                    if(right.screenX == 0 && right.screenY == 0)
+                    {
+                        targetX = left.screenX - LeftPosition.Width / 2;
+                        targetY = left.screenY - LeftPosition.Height / 2;
+                    }
+                    else
+                    {
+                        targetX = (left.screenX + right.screenX) / 2 - LeftPosition.Width / 2;
+                        targetY = (left.screenY + right.screenY) / 2 - LeftPosition.Height / 2;
+                    }
+                }
 
                 // 计算移动距离决定动画时长（动态速度）
                 var distance = Math.Sqrt(
@@ -391,5 +441,12 @@ public partial class EyeTrackWindow : Window
         Width  = 30,
         Fill   = Brushes.Cyan
     };
-    
+
+    // 辅助方法：验证点是否有效
+    private bool IsValidPoint(Point point)
+    {
+        return !double.IsNaN(point.X) && !double.IsNaN(point.Y) &&
+               !double.IsInfinity(point.X) && !double.IsInfinity(point.Y);
+    }
+
 }

@@ -26,11 +26,10 @@ namespace EyeTracking.Desktop.ViewModels;
 [AutoKeyAccessor]
 public partial class EyeTrackViewModel : ObservableObject, IDisposable
 {
-    private System.Timers.Timer _timer;
     public EyeTrackViewModel(Window window)
     {
         this.window = window;
-        //var interval = 1000 ;
+        //var interval = 1000;
         //Task.Run(() =>
         //{
         //    while (true)
@@ -43,12 +42,14 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
         //        OnPropertyChanged(nameof(AlgFps));
         //    }
         //});
+
         var interval = 180;
-        _timer = new System.Timers.Timer(16);  // ~60Hz
+        System.Timers.Timer _timer;
+        _timer = new System.Timers.Timer(32);  // ~60Hz
         _timer.Elapsed += (s, e) =>
-            {
-                PInvoke.GetCursorPos(out var point);
-                MousePos = point;
+        {
+            PInvoke.GetCursorPos(out var point);
+            MousePos = new(point.X, point.Y);
 
             if (interval-- <= 0)
             {
@@ -190,15 +191,17 @@ public partial class EyeTrackViewModel : ObservableObject, IDisposable
             List<double> dySamples = new List<double>();
             List<double> r_dxSamples = new List<double>();
             List<double> r_dySamples = new List<double>();
-            const int maxSamples = 70;
+            const int maxSamples = 40;
             const double varianceThreshold = 1e-4;
             double lastVector = 0;
 
             while (dxSamples.Count < maxSamples)
             {
                 //if (lastVector == LeftEyeVector.X) continue;
-                Thread.Sleep(30);
+                Thread.Sleep(50);
                 lastVector = LeftEyeVector.X;
+                if ((LeftEyeVector.X == 0 && LeftEyeVector.Y == 0) || (RightEyeVector.X == 0 && RightEyeVector.Y == 0))
+                    continue;
                 dxSamples.Add(LeftEyeVector.X);
                 dySamples.Add(LeftEyeVector.Y);
                 r_dxSamples.Add(RightEyeVector.X);

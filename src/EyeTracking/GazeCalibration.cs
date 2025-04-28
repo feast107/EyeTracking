@@ -89,6 +89,10 @@ namespace EyeTracking
 
         public (double screenX, double screenY) CalculateGazePoint(double deltaX, double deltaY)
         {
+            if (deltaX == 0 && deltaY == 0)
+            {
+                return ((double)0, (double)0);
+            }
             // 1. 原始坐标计算（保持原有逻辑）
             var features = new[] { deltaX, deltaY, deltaX * deltaY, deltaX * deltaX, deltaY * deltaY, 1 };
             // 更新特征计算，增加三次项

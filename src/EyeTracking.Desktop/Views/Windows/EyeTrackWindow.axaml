@@ -13,8 +13,8 @@
         <Grid>
             <Grid>
                 <Canvas x:Name="Canvas">
-                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="10" Width="10" />
-					<Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="#CC6699FF" Opacity="0.7" Height="10" Width="10">
+                    <Ellipse x:Name="MousePosition" Fill="Aquamarine" Height="30" Width="30" />
+					<Ellipse Canvas.Left="-60" x:Name="LeftPosition" Fill="#CC6699FF" Opacity="0.7" Height="30" Width="30">
 						<Ellipse.RenderTransform>
 							<TransformGroup>
 								<ScaleTransform/>
@@ -22,7 +22,7 @@
 							</TransformGroup>
 						</Ellipse.RenderTransform>
 					</Ellipse>
-                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.7" Height="50" Width="50" />
+                    <Ellipse Canvas.Left="-60" x:Name="RightPosition" Fill="DimGray" Opacity="0.7" Height="0" Width="0" />
                 </Canvas>
             </Grid>
             <Grid>
